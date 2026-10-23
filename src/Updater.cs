@@ -9,7 +9,7 @@ namespace HPControlPanel
 {
     public static class Updater
     {
-        public const string Version = "1.0.1";
+        public const string Version = "1.0.2";
         public const string Author = "HoShino_Rizu";
         // "owner/name" of the GitHub repository; empty until the project is published.
         public const string Repo = "XYLELV/HP-Control-Center";
