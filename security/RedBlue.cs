@@ -3,17 +3,20 @@
 // user, the same attacker the threat model assumes, and reports BLOCKED / ALLOWED / INCONCLUSIVE per vector.
 //
 //   Blue team: SafeFile (reparse-point / link guard), Settings.InstalledCopy, SystemInfo.Sys32.
-//   Red team : the four attacks the review flagged, aimed only at this app's own data folder and helpers.
+//   Red team : the attacks the reviews flagged, aimed only at this app's own data folder and helpers.
 //
 // Scope and honesty:
 //   - Everything happens inside one temp playground. Nothing is written outside it, no other program or machine
-//     is touched, and NO system-wide state (Task Scheduler, registry, services) is changed — vector 4 only reads
+//     is touched, and NO system-wide state (Task Scheduler, registry, services) is changed — vector 4 only calls
 //     the guard that runs before any task would be registered, it never calls the registration.
 //   - Each attack first checks that its precondition really took effect (the junction / hard link was actually
 //     created). If not, it reports INCONCLUSIVE rather than counting a failed attack as a blocked one.
+//   - A control run first checks that SafeFile still does its normal job (write, overwrite, append, read a plain file),
+//     so a guard that simply refuses everything can't pass, and that this test isn't itself running elevated.
+//   - Verdicts rest on what actually happened to the target (sentinel content, files left behind), not on return values.
+//   - Exit code: 0 = all held, 1 = an attack got through, 2 = something was INCONCLUSIVE, 3 = the control run failed.
 using System;
 using System.IO;
-using System.Reflection;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using Microsoft.Win32.SafeHandles;
@@ -56,6 +59,12 @@ static class RedBlue
         }
     }
 
+    static bool IsElevated()
+    {
+        var p = new System.Security.Principal.WindowsPrincipal(System.Security.Principal.WindowsIdentity.GetCurrent());
+        return p.IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator);
+    }
+
     static void Main()
     {
         string root = Path.Combine(Path.GetTempPath(), "hpcp-redblue-" + Guid.NewGuid().ToString("N"));
@@ -65,8 +74,29 @@ static class RedBlue
         Console.WriteLine("(temp folder only; no system-wide change; no task is ever registered)");
         Console.WriteLine();
 
+        if (IsElevated())
+        {
+            Console.WriteLine("[CONTROL FAILED] this test is running elevated; the attacker is an ordinary user. Run it from a normal (non-admin) terminal.");
+            Environment.Exit(3);
+        }
+
         try
         {
+            // ---- Control: the guard must still allow ordinary writes and reads, or "blocked" below means nothing ----
+            string plainDir = Path.Combine(root, "plain"), plain = Path.Combine(plainDir, "settings.ini");
+            Directory.CreateDirectory(plainDir);
+            bool ok = SafeFile.WriteAllText(plain, "Theme=one") && SafeFile.WriteAllText(plain, "Theme=two")
+                   && SafeFile.AppendAllText(plain, "\nTopMost=1") && File.ReadAllText(plain) == "Theme=two\nTopMost=1";
+            byte[] back = SafeFile.ReadAllBytes(plain, 1 << 20);
+            ok = ok && back != null && back.Length == new FileInfo(plain).Length && SafeFile.ReadAllBytes(plain, 4) == null;
+            if (!ok)
+            {
+                Console.WriteLine("[CONTROL FAILED] SafeFile refused or garbled an ordinary write/read - the vectors below would prove nothing.");
+                Environment.Exit(3);
+            }
+            Console.WriteLine("[CONTROL OK] ordinary write / overwrite / append / read work; size cap enforced; not elevated");
+            Console.WriteLine();
+
             // ---- Vector 1: junction the data folder, then make the elevated app write through it ----
             string data = Path.Combine(root, "data"), elsewhere = Path.Combine(root, "elsewhere");
             Directory.CreateDirectory(elsewhere);
@@ -78,7 +108,7 @@ static class RedBlue
             {
                 bool wrote = SafeFile.WriteAllText(Path.Combine(data, "settings.ini"), "Theme=pwned");
                 bool landed = File.Exists(Path.Combine(elsewhere, "settings.ini"));
-                Report("Junction redirect of the data folder", wrote || landed ? R.Allowed : R.Blocked,
+                Report("Junction redirect of the data folder", landed ? R.Allowed : wrote ? R.Inconclusive : R.Blocked,
                     "junction confirmed; SafeFile.WriteAllText=" + wrote + "; file in redirect target=" + landed);
             }
 
@@ -96,7 +126,9 @@ static class RedBlue
             {
                 bool wrote2 = SafeFile.WriteAllText(linked, "Theme=pwned");
                 string secretNow = File.ReadAllText(secret);
-                Report("Hard link from a data file to a protected file", wrote2 || secretNow != "original-protected-content" ? R.Allowed : R.Blocked,
+                // Verdict on the protected file itself: a safe implementation may replace the link with a new file
+                // (write succeeds) as long as the protected content is untouched.
+                Report("Hard link from a data file to a protected file", secretNow != "original-protected-content" ? R.Allowed : R.Blocked,
                     "hard link confirmed (link count " + LinkCount(secret) + "); SafeFile.WriteAllText=" + wrote2 + "; protected file now=\"" + secretNow + "\"");
             }
 
@@ -108,15 +140,55 @@ static class RedBlue
                      && Path.IsPathRooted(shut) && shut.StartsWith(sys32, StringComparison.OrdinalIgnoreCase);
             Report("Planted helper exe in the working directory", full ? R.Blocked : R.Allowed, "helpers resolve to: " + pnp + " / " + shut);
 
-            // ---- Vector 4: a portable copy must not be allowed to register the elevated autostart task ----
-            // Side-effect-free: SetAutoStart(true)'s first statement is `if (!InstalledCopy) return false`, so the
-            // guard decides before any task is registered. We read that guard only; we never call the registration.
-            var exeDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
-            bool installed = (bool)typeof(Settings).GetProperty("InstalledCopy", BindingFlags.Public | BindingFlags.Static).GetValue(null);
-            if (installed)
-                Report("Portable copy registering elevated autostart", R.Inconclusive, "this copy IS in Program Files (" + exeDir + ") - run the portable copy from a user folder to test the portable case");
+            // ---- Vector 4: only the exact installed path may register the elevated autostart task ----
+            // Side-effect-free: SetAutoStart(true) refuses unless Settings.IsInstallPath(own exe). We call that guard
+            // with the paths an attacker could use; we never call the registration.
+            string pf = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+            var tries = new[]
+            {
+                Path.Combine(root, "HPControlPanel.exe"),                               // portable copy in a user folder
+                Path.Combine(pf, "SomeVendor", "HPControlPanel.exe"),                   // another Program Files folder (may be user-writable)
+                Path.Combine(pf, "HPControlPanel", "..", "SomeVendor", "HPControlPanel.exe"),
+                Path.Combine(pf, "HPControlPanel", "sub", "HPControlPanel.exe"),
+            };
+            string accepted = null;
+            foreach (var t in tries) if (Settings.IsInstallPath(t)) { accepted = t; break; }
+            bool exactOk = !Directory.Exists(Path.GetDirectoryName(Settings.InstallExe)) || Settings.IsInstallPath(Settings.InstallExe);
+            if (accepted != null)
+                Report("Non-installed copy registering elevated autostart", R.Allowed, "guard accepted " + accepted);
+            else if (!exactOk)
+                Report("Non-installed copy registering elevated autostart", R.Inconclusive, "guard also refuses the real install path " + Settings.InstallExe + " - control failed");
             else
-                Report("Portable copy registering elevated autostart", R.Blocked, "InstalledCopy=False for " + exeDir + "; the autostart guard refuses before any task is registered (no Task Scheduler call made)");
+                Report("Non-installed copy registering elevated autostart", R.Blocked, "guard refuses portable / other-Program-Files / ..-escaped / subfolder paths; accepts only " + Settings.InstallExe);
+
+            // ---- Vector 5: junction a folder the elevated app reads from (legacy migration), to copy out a file ----
+            string legacy = Path.Combine(root, "legacy"), hidden = Path.Combine(root, "hidden");
+            Directory.CreateDirectory(hidden);
+            File.WriteAllText(Path.Combine(hidden, "settings.ini"), "secret-should-not-be-read");
+            Mklink("/J \"" + legacy + "\" \"" + hidden + "\"");
+            if (!(Directory.Exists(legacy) && (File.GetAttributes(legacy) & FileAttributes.ReparsePoint) != 0))
+                Report("Junction redirect of a folder the app reads from", R.Inconclusive, "could not create the junction - attack not set up, result means nothing");
+            else
+            {
+                byte[] got = SafeFile.ReadAllBytes(Path.Combine(legacy, "settings.ini"), 1 << 20);
+                Report("Junction redirect of a folder the app reads from", got != null ? R.Allowed : R.Blocked,
+                    "junction confirmed; SafeFile.ReadAllBytes returned " + (got == null ? "null (refused)" : got.Length + " bytes"));
+            }
+
+            // ---- Vector 6: hard link in a folder the app reads from, pointing at another file ----
+            string readDir = Path.Combine(root, "readdir");
+            Directory.CreateDirectory(readDir);
+            string other = Path.Combine(root, "other.txt"), viaLink = Path.Combine(readDir, "custom-mascot.png");
+            File.WriteAllText(other, "secret-should-not-be-read");
+            Mklink("/H \"" + viaLink + "\" \"" + other + "\"");
+            if (!(File.Exists(viaLink) && LinkCount(other) > 1))
+                Report("Hard link in a folder the app reads from", R.Inconclusive, "hard link not created - attack not set up, result means nothing");
+            else
+            {
+                byte[] got = SafeFile.ReadAllBytes(viaLink, 1 << 20);
+                Report("Hard link in a folder the app reads from", got != null ? R.Allowed : R.Blocked,
+                    "hard link confirmed; SafeFile.ReadAllBytes returned " + (got == null ? "null (refused)" : got.Length + " bytes"));
+            }
         }
         finally
         {
@@ -127,7 +199,7 @@ static class RedBlue
         Console.WriteLine();
         if (broke > 0) Console.WriteLine("RED TEAM GOT THROUGH on " + broke + " vector(s) - see [ALLOWED] above.");
         else if (inconclusive > 0) Console.WriteLine("BLUE TEAM HELD on every vector that ran; " + inconclusive + " were INCONCLUSIVE (attack could not be set up).");
-        else Console.WriteLine("BLUE TEAM HELD: all 4 vectors blocked.");
-        Environment.Exit(broke > 0 ? 1 : 0);
+        else Console.WriteLine("BLUE TEAM HELD: all 6 vectors blocked.");
+        Environment.Exit(broke > 0 ? 1 : inconclusive > 0 ? 2 : 0);
     }
 }

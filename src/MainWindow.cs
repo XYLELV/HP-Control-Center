@@ -125,8 +125,11 @@ namespace HPControlPanel
                 bmp.Render(root);
                 var enc = new PngBitmapEncoder();
                 enc.Frames.Add(BitmapFrame.Create(bmp));
-                using (var f = File.Create(path)) enc.Save(f);
-                File.WriteAllText(path + ".txt", "client " + root.ActualWidth + "x" + root.ActualHeight + " dpi " + dpi.PixelsPerInchX);
+                // Encoded in memory, then written through SafeFile like every other write of this elevated app.
+                var png = new MemoryStream();
+                enc.Save(png);
+                if (!SafeFile.WriteAllBytes(path, png.ToArray()) || !SafeFile.WriteAllText(path + ".txt", "client " + root.ActualWidth + "x" + root.ActualHeight + " dpi " + dpi.PixelsPerInchX))
+                    App.Log(new IOException("snapshot refused (folder or file is a link): " + path));
                 Application.Current.Shutdown();
             };
             t.Start();
@@ -196,12 +199,18 @@ namespace HPControlPanel
             }
         }
 
+        // The custom picture in the user-writable data folder: read through SafeFile with a size cap, and refused if
+        // it decodes to something absurdly large (a tiny file can claim a huge image and exhaust memory).
         static BitmapSource LoadFileImage(string path)
         {
             try
             {
+                byte[] data = SafeFile.ReadAllBytes(path, Settings.MaxImageBytes);
+                if (data == null) return null;
+                var frame = BitmapDecoder.Create(new MemoryStream(data), BitmapCreateOptions.DelayCreation, BitmapCacheOption.None).Frames[0];
+                if ((long)frame.PixelWidth * frame.PixelHeight > 40000000L) return null;
                 var b = new BitmapImage();
-                b.BeginInit(); b.UriSource = new Uri(path); b.CacheOption = BitmapCacheOption.OnLoad; b.CreateOptions = BitmapCreateOptions.IgnoreImageCache; b.EndInit(); b.Freeze();
+                b.BeginInit(); b.StreamSource = new MemoryStream(data); b.CacheOption = BitmapCacheOption.OnLoad; b.CreateOptions = BitmapCreateOptions.IgnoreImageCache; b.EndInit(); b.Freeze();
                 return b;
             }
             catch { return null; }
@@ -426,10 +435,14 @@ namespace HPControlPanel
             timer.Start();
         }
 
-        // Opens un-elevated in the default browser (only https links are passed).
+        // Opens un-elevated in the default browser. Only https links to github.com (the repository and its releases;
+        // the release URL comes from the GitHub API), re-serialized by Uri so no quote can reach explorer's command line.
         static void OpenUrl(string url)
         {
-            if (url.StartsWith("https://")) Launcher.ShellOpen("\"" + url + "\"");
+            Uri u;
+            if (Uri.TryCreate(url, UriKind.Absolute, out u) && u.Scheme == Uri.UriSchemeHttps && u.IsDefaultPort
+                && string.Equals(u.Host, "github.com", StringComparison.OrdinalIgnoreCase) && u.AbsoluteUri.IndexOf('"') < 0)
+                Launcher.ShellOpen("\"" + u.AbsoluteUri + "\"");
         }
 
         void CheckForUpdate(bool manual)
@@ -1095,7 +1108,7 @@ namespace HPControlPanel
         void LoadMascotImage()
         {
             BitmapSource img = null;
-            if (!string.IsNullOrEmpty(settings.MascotImage) && File.Exists(settings.MascotImage)) img = LoadFileImage(settings.MascotImage);
+            if (Settings.IsOwnImage(settings.MascotImage) && File.Exists(settings.MascotImage)) img = LoadFileImage(settings.MascotImage);
             bool custom = img != null;
             if (!custom) img = LoadResourceImage("girl-home.png");
             Get<Image>("GirlImage").Source = img;
@@ -1139,6 +1152,7 @@ namespace HPControlPanel
                     // Keep a copy in the data folder so the original can be moved or deleted.
                     string ext = Path.GetExtension(dlg.FileName).ToLowerInvariant();
                     if (!Settings.ImageExtensions.Contains(ext)) throw new IOException(L.S("只支持 PNG / JPG / BMP / GIF 图片。", "Only PNG / JPG / BMP / GIF images are supported."));
+                    if (new FileInfo(dlg.FileName).Length > Settings.MaxImageBytes) throw new IOException(L.S("图片太大了（最大 20 MB）。", "圖片太大了（最大 20 MB）。", "The image is too large (20 MB max)."));
                     string dest = Path.Combine(Settings.DataDir, "custom-mascot" + ext);
                     if (!SafeFile.WriteAllBytes(dest, File.ReadAllBytes(dlg.FileName)))
                         throw new IOException(L.S("数据文件夹 %APPDATA%\\HPControlPanel 无法安全写入。", "The data folder %APPDATA%\\HPControlPanel can't be written safely."));

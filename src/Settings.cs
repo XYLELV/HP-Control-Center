@@ -42,20 +42,49 @@ namespace HPControlPanel
         static string LegacyDir { get { return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "HPControlPanel"); } }
 
         public static readonly string[] ImageExtensions = { ".png", ".jpg", ".jpeg", ".bmp", ".gif" };
+        public const long MaxImageBytes = 20 << 20;
+        const long MaxSettingsBytes = 256 << 10;
 
-        // One-time move of settings.ini and custom-mascot.* from the old install folder.
+        // The custom picture as stored by 设置 → 人物图片: custom-mascot.<ext> in the data folder, nothing else.
+        public static bool IsOwnImage(string path)
+        {
+            try
+            {
+                string full = Path.GetFullPath(path);
+                return string.Equals(Path.GetDirectoryName(full), DataDir, StringComparison.OrdinalIgnoreCase)
+                    && Path.GetFileNameWithoutExtension(full).Equals("custom-mascot", StringComparison.OrdinalIgnoreCase)
+                    && ImageExtensions.Contains(Path.GetExtension(full).ToLowerInvariant());
+            }
+            catch { return false; }
+        }
+
+        static string[] ReadLines(string path)
+        {
+            byte[] b = SafeFile.ReadAllBytes(path, MaxSettingsBytes);
+            if (b == null) return null;
+            return new StreamReader(new MemoryStream(b), Encoding.UTF8).ReadToEnd().Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
+        }
+
+        // One-time move of settings.ini and custom-mascot.* from the old install folder. That folder is user-writable,
+        // so it is read through SafeFile too: a link there must not make this elevated app copy out a file the user
+        // couldn't read (deleting the new settings.ini would re-run the migration as often as wanted).
         static void MigrateLegacy()
         {
             try
             {
-                if (File.Exists(FilePath) || !File.Exists(Path.Combine(LegacyDir, "settings.ini"))) return;
+                string legacyIni = Path.Combine(LegacyDir, "settings.ini");
+                if (File.Exists(FilePath) || !File.Exists(legacyIni)) return;
+                var lines = ReadLines(legacyIni);
+                if (lines == null) return;
                 // Only picture files: anything else in that user-writable folder isn't ours to copy.
                 foreach (var f in Directory.GetFiles(LegacyDir, "custom-mascot.*"))
                     if (ImageExtensions.Contains(Path.GetExtension(f).ToLowerInvariant()))
-                        SafeFile.WriteAllBytes(Path.Combine(DataDir, Path.GetFileName(f)), File.ReadAllBytes(f));
-                var lines = File.ReadAllLines(Path.Combine(LegacyDir, "settings.ini"), Encoding.UTF8)
-                    .Select(l => l.StartsWith("MascotImage=") ? l.Replace(LegacyDir, DataDir) : l);
-                SafeFile.WriteAllText(FilePath, string.Join(Environment.NewLine, lines) + Environment.NewLine);
+                    {
+                        byte[] img = SafeFile.ReadAllBytes(f, MaxImageBytes);
+                        if (img != null) SafeFile.WriteAllBytes(Path.Combine(DataDir, Path.GetFileName(f)), img);
+                    }
+                var moved = lines.Select(l => l.StartsWith("MascotImage=") ? l.Replace(LegacyDir, DataDir) : l);
+                SafeFile.WriteAllText(FilePath, string.Join(Environment.NewLine, moved).TrimEnd() + Environment.NewLine);
             }
             catch (Exception e) { App.Log(e); }
         }
@@ -67,7 +96,9 @@ namespace HPControlPanel
             {
                 MigrateLegacy();
                 if (!File.Exists(FilePath)) return s;
-                foreach (var line in File.ReadAllLines(FilePath, Encoding.UTF8))
+                var lines = ReadLines(FilePath);
+                if (lines == null) { App.Log(new IOException("settings.ini refused (link, or larger than " + MaxSettingsBytes + " bytes); using defaults")); return s; }
+                foreach (var line in lines)
                 {
                     int i = line.IndexOf('=');
                     if (i <= 0) continue;
@@ -79,8 +110,8 @@ namespace HPControlPanel
                         case "RefreshSec": if (int.TryParse(v, out n)) s.RefreshSec = Math.Max(1, Math.Min(10, n)); break;
                         case "AlertTemp": if (int.TryParse(v, out n)) s.AlertTemp = Math.Max(60, Math.Min(95, n)); break;   // same range as AlertSlider
                         case "TopMost": s.TopMost = v == "1"; break;
-                        case "MascotImage": s.MascotImage = v; break;
-                        case "CustomApp": if (v.Length > 0) s.CustomApps.Add(v); break;
+                        case "MascotImage": if (v.Length == 0 || IsOwnImage(v)) s.MascotImage = v; break;
+                        case "CustomApp": if (v.Length > 0 && s.CustomApps.Count < 64) s.CustomApps.Add(v); break;
                         case "WeatherMode": if (v == "location" || v == "ip" || v == "manual") s.WeatherMode = v; break;
                         case "WeatherPlace": s.WeatherPlace = v; break;
                         case "WeatherLat": double.TryParse(v, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out s.WeatherLat); break;
@@ -96,7 +127,7 @@ namespace HPControlPanel
             return s;
         }
 
-        public void Save()
+        public bool Save()
         {
             var sb = new StringBuilder();
             sb.AppendLine("Theme=" + Theme);
@@ -113,7 +144,8 @@ namespace HPControlPanel
             sb.AppendLine("LastUpdateCheck=" + LastUpdateCheck);
             sb.AppendLine("AnnouncedVersion=" + AnnouncedVersion);
             sb.AppendLine("Language=" + Language);
-            SafeFile.WriteAllText(FilePath, sb.ToString());
+            if (!SafeFile.WriteAllText(FilePath, sb.ToString())) { App.Log(new IOException("settings.ini could not be written safely: " + FilePath)); return false; }
+            return true;
         }
 
         // ---------- Autostart: a logon task with highest privileges, so no UAC prompt at each login ----------
@@ -156,19 +188,30 @@ namespace HPControlPanel
             return FindTask(TaskName) != null || MyLegacyTask() != null;
         }
 
-        // The task starts its exe as administrator without asking, so only a copy in Program Files (writable by
-        // administrators only) may be registered: a copy run from e.g. Downloads could be swapped by any program,
-        // which would then start elevated at every sign-in.
+        // The task starts its exe as administrator without asking, so only the copy install.ps1 put in
+        // C:\Program Files\HPControlPanel (writable by administrators only) may be registered: a copy run from e.g.
+        // Downloads could be swapped by any program, which would then start elevated at every sign-in. Exactly that
+        // path, not just "somewhere in Program Files": other software sometimes leaves a user-writable folder there.
+        public static string InstallExe
+        {
+            get { return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "HPControlPanel", "HPControlPanel.exe"); }
+        }
+
+        public static bool IsInstallPath(string exe)
+        {
+            try
+            {
+                return string.Equals(Path.GetFullPath(exe), InstallExe, StringComparison.OrdinalIgnoreCase)
+                    && SafeFile.DirOk(Path.GetDirectoryName(InstallExe));   // no junction on the folder or above it
+            }
+            catch { return false; }
+        }
+
         public static bool InstalledCopy
         {
             get
             {
-                try
-                {
-                    string exe = Path.GetFullPath(Process.GetCurrentProcess().MainModule.FileName);
-                    string pf = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles).TrimEnd('\\') + "\\";
-                    return exe.StartsWith(pf, StringComparison.OrdinalIgnoreCase);
-                }
+                try { return IsInstallPath(Process.GetCurrentProcess().MainModule.FileName); }
                 catch { return false; }
             }
         }
