@@ -50,7 +50,7 @@ namespace HPControlPanel
             {
                 if (!first && restart)
                 {
-                    try { first = single.WaitOne(15000); }
+                    try { first = single.WaitOne(60000); }   // generous: the old window may be finishing a slow WMI / EC read
                     catch (AbandonedMutexException) { first = true; }   // the old instance exited without releasing it
                 }
                 if (!first) { ActivateRunningInstance(); return 0; }

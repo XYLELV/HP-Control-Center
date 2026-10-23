@@ -1,6 +1,7 @@
 // GPU temperature from the graphics driver, the same source Task Manager uses (WDDM 2.4+ adapter perf data).
 // Discrete GPUs (NVIDIA / AMD / Intel Arc) usually report it; integrated GPUs usually don't.
 using System;
+using System.Linq;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
 using System.Runtime.InteropServices;
@@ -199,12 +200,22 @@ namespace HPControlPanel
         }
 
         // True when every GPU is integrated into the CPU (Intel UHD/Iris/HD, AMD APU "Radeon Graphics").
+        // Discrete cards by name. Everything else is treated as integrated, so new iGPU names
+        // ("Intel Arc 140V GPU", "Radeon 890M") don't show up as a separate graphics card.
+        // "Intel Arc Graphics" (Core Ultra) and "Radeon RX Vega" are integrated.
+        public const string DiscretePattern = @"NVIDIA|GeForce|Quadro|\bRTX\b|Radeon\s+RX\s*\d{4}|Radeon\s+Pro|\bArc\s+A\d{3}";
+
+        public static bool IsDiscrete(string gpuName) { return gpuName != null && Regex.IsMatch(gpuName, DiscretePattern, RegexOptions.IgnoreCase); }
+
+        public static bool HasDiscrete(string gpuList)
+        {
+            return (gpuList ?? "").Split(new[] { " + " }, StringSplitOptions.RemoveEmptyEntries).Any(IsDiscrete);
+        }
+
+        // At least one GPU was found and none of them is discrete.
         public static bool AllIntegrated(string gpuList)
         {
-            if (string.IsNullOrEmpty(gpuList)) return false;
-            foreach (var g in gpuList.Split(new[] { " + " }, StringSplitOptions.RemoveEmptyEntries))
-                if (!Regex.IsMatch(g, @"Intel.*\b(UHD|Iris|HD)\b.*Graphics|^Intel Arc Graphics$|^AMD Radeon( TM)? Graphics$|\bVega\b|Radeon\s*\d{3}M", RegexOptions.IgnoreCase)) return false;
-            return true;
+            return !string.IsNullOrEmpty(gpuList) && !HasDiscrete(gpuList);
         }
     }
 }

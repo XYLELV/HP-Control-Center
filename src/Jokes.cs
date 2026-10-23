@@ -21,8 +21,7 @@ namespace HPControlPanel
         {
             var lines = new List<string>();
             var gpus = (gpuList ?? "").Split(new[] { " + " }, StringSplitOptions.RemoveEmptyEntries).Select(g => g.Trim()).ToList();
-            // Discrete only: "Intel Arc Graphics" (Core Ultra) and "Radeon RX Vega" are integrated.
-            var dgpu = gpus.FirstOrDefault(g => Is(g, @"NVIDIA|GeForce|Quadro|\bRTX\b|Radeon\s+RX\s*\d{4}|Radeon\s+Pro|\bArc\s+A\d{3}"));
+            var dgpu = gpus.FirstOrDefault(Gpu.IsDiscrete);
             var igpu = gpus.FirstOrDefault(g => g != dgpu);
 
             if (dgpu != null) lines.AddRange(Discrete(dgpu));

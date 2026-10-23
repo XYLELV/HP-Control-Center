@@ -428,8 +428,7 @@ namespace HPControlPanel
         // Opens un-elevated in the default browser (only https links are passed).
         static void OpenUrl(string url)
         {
-            if (!url.StartsWith("https://")) return;
-            Process.Start(new ProcessStartInfo(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "explorer.exe"), "\"" + url + "\"") { UseShellExecute = false });
+            if (url.StartsWith("https://")) Launcher.ShellOpen("\"" + url + "\"");
         }
 
         void CheckForUpdate(bool manual)
@@ -640,6 +639,7 @@ namespace HPControlPanel
                 s.Brightness = SystemInfo.GetBrightness();
                 s.Volume = SystemInfo.GetVolume(out s.Muted);
                 s.PowerMode = SystemInfo.GetPowerMode();
+                s.PowerModeAvailable = SystemInfo.PowerModeAvailable();
                 AppEntry[] list = null;
                 W.Dispatcher.Invoke(() => list = apps.ToArray());
                 foreach (var a in list) s.Running[a] = Launcher.IsRunning(a);
@@ -721,7 +721,7 @@ namespace HPControlPanel
             string mute = MuteLabel(s.Muted);
             Get<Button>("HomeMuteBtn").Content = mute;
             Get<Button>("PageMuteBtn").Content = mute;
-            SetPowerUi(s.PowerMode);
+            SetPowerUi(s.PowerMode, s.PowerModeAvailable);
 
             // Battery
             string batState = s.Battery < 0 ? L.S("没有检测到电池", "No battery") : s.Charging ? L.S("正在充电", "Charging") : s.Plugged ? L.S("已接通电源", "Plugged in") : L.S("使用电池", "On battery");
@@ -825,7 +825,7 @@ namespace HPControlPanel
                 tail.Inlines.Add(new System.Windows.Documents.Run(name + " " + (data.Count > 0 ? data[data.Count - 1].Value + "°C" : "—")));
             };
             entry(gpuIntegrated ? L.S("CPU / 核显", "CPU / 內顯", "CPU / iGPU") : "CPU", CpuBrush, history);
-            if (!gpuIntegrated || gpuHistory.Count > 0) entry(L.S("独立显卡", "獨立顯示卡", "Discrete GPU"), GpuBrush, gpuHistory);
+            if (Gpu.HasDiscrete(machine.Gpu) || gpuHistory.Count > 0) entry(L.S("独立显卡", "獨立顯示卡", "Discrete GPU"), GpuBrush, gpuHistory);
         }
 
         // Fixed colours (not the theme accent) so the two curves are always told apart: blue CPU, orange GPU.
@@ -884,7 +884,7 @@ namespace HPControlPanel
             foreach (var m in modes)
             {
                 var mode = m.Mode;
-                RoutedEventHandler click = (o, e) => { SystemInfo.SetPowerMode(mode); SetPowerUi(SystemInfo.GetPowerMode()); };
+                RoutedEventHandler click = (o, e) => { SystemInfo.SetPowerMode(mode); SetPowerUi(SystemInfo.GetPowerMode(), SystemInfo.PowerModeAvailable()); };
                 Get<RadioButton>(m.Home).Click += click;
                 Get<RadioButton>(m.Page).Click += click;
             }
@@ -919,13 +919,18 @@ namespace HPControlPanel
             Get<TextBlock>("HomeVolumeText").Text = Get<TextBlock>("PageVolumeText").Text = v + "%";
         }
 
-        void SetPowerUi(Guid g)
+        void SetPowerUi(Guid g, bool available)
         {
             bool saver = g == SystemInfo.PowerSaver, perf = g == SystemInfo.PowerPerformance, bal = !saver && !perf;
             Get<RadioButton>("HomePowerSaver").IsChecked = Get<RadioButton>("PagePowerSaver").IsChecked = saver;
             Get<RadioButton>("HomePowerBalanced").IsChecked = Get<RadioButton>("PagePowerBalanced").IsChecked = bal;
             Get<RadioButton>("HomePowerPerf").IsChecked = Get<RadioButton>("PagePowerPerf").IsChecked = perf;
-            Get<TextBlock>("PowerModeHint").Text = saver ? L.S("省电：降低性能，让电池用得更久。", "Saver: lower performance, longer battery life.")
+            foreach (var n in new[] { "HomePowerSaver", "PagePowerSaver", "HomePowerBalanced", "PagePowerBalanced", "HomePowerPerf", "PagePowerPerf" })
+                Get<RadioButton>(n).IsEnabled = available;
+            Get<TextBlock>("PowerModeHint").Text = !available
+                ? L.S("当前电源计划不是「平衡」，Windows 只在平衡计划下提供电源模式。要用的话，在右边的电源计划里切回「平衡」。",
+                      "Windows only offers power modes on the Balanced plan. Switch the power plan on the right back to Balanced to use them.")
+                : saver ? L.S("省电：降低性能，让电池用得更久。", "Saver: lower performance, longer battery life.")
                 : perf ? L.S("高性能：CPU 全力运行，风扇可能转得更快、更耗电。", "Performance: the CPU runs flat out; the fan may spin faster and battery drains quicker.")
                 : L.S("平衡：日常使用的推荐模式，在性能和续航之间自动取舍。", "Balanced: recommended for everyday use, trades off speed and battery life automatically.");
         }
@@ -936,10 +941,8 @@ namespace HPControlPanel
         // power page is opened and when the window gets focus back, not on every poll.
         void WirePowerPlans()
         {
-            Get<Button>("PowerOptionsBtn").Click += (o, e) =>
-                // Power Options, opened un-elevated through Explorer like the quick-launch programs.
-                Process.Start(new ProcessStartInfo(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "explorer.exe"),
-                    "shell:::{025A5937-A6BE-4686-A844-36FE4BEC8B6D}") { UseShellExecute = false });
+            // Control Panel → Power Options
+            Get<Button>("PowerOptionsBtn").Click += (o, e) => Launcher.ShellOpen("shell:::{025A5937-A6BE-4686-A844-36FE4BEC8B6D}");
             Get<RadioButton>("NavPower").Checked += (o, e) => RefreshPowerPlans();
             W.Activated += (o, e) => { if (Get<UIElement>("PagePower").Visibility == Visibility.Visible) RefreshPowerPlans(); };
             RefreshPowerPlans();
@@ -954,7 +957,12 @@ namespace HPControlPanel
             {
                 var plan = p.Item1;
                 var rb = new RadioButton { Content = p.Item2, GroupName = "PowerPlan", MinWidth = 96, Style = (Style)W.Resources["SegItem"], IsChecked = plan == active };
-                rb.Click += (o, e) => { if (!SystemInfo.SetPlan(plan)) MessageBox.Show(W, L.S("切换电源计划失败。", "Couldn't switch the power plan."), L.T("电源计划")); RefreshPowerPlans(); };
+                rb.Click += (o, e) =>
+                {
+                    if (!SystemInfo.SetPlan(plan)) MessageBox.Show(W, L.S("切换电源计划失败。", "Couldn't switch the power plan."), L.T("电源计划"));
+                    RefreshPowerPlans();
+                    SetPowerUi(SystemInfo.GetPowerMode(), SystemInfo.PowerModeAvailable());
+                };
                 host.Children.Add(rb);
             }
         }

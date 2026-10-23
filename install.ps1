@@ -14,7 +14,9 @@
 #    -NoPawnIO skips this.
 param([switch]$NoPawnIO)
 $ErrorActionPreference = 'Stop'
+# Source checkout: files are in bin\ after build.ps1. Release zip: they sit next to this script.
 $src = Join-Path $PSScriptRoot 'bin'
+if (-not (Test-Path (Join-Path $src 'HPControlPanel.exe'))) { $src = $PSScriptRoot }
 $dst = Join-Path $env:ProgramFiles 'HPControlPanel'
 $files = 'HPControlPanel.exe', 'LpcACPIEC.bin'
 $pawnUrl = 'https://github.com/namazso/PawnIO.Setup/releases/download/2.2.0/PawnIO_setup.exe'
@@ -31,9 +33,14 @@ foreach ($f in $files) {
 $needPawn = -not $NoPawnIO -and -not (Test-Path (Join-Path $env:ProgramFiles 'PawnIO\PawnIOLib.dll'))
 if ($needPawn) {
     'downloading PawnIO 2.2.0 ...'
-    [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
-    (New-Object Net.WebClient).DownloadFile($pawnUrl, (Join-Path $stage 'PawnIO_setup.exe'))
-    if ((Get-FileHash (Join-Path $stage 'PawnIO_setup.exe') -Algorithm SHA256).Hash -ne $pawnSha) { Remove-Item $stage -Recurse -Force; throw 'PawnIO_setup.exe SHA-256 mismatch' }
+    try {
+        [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+        (New-Object Net.WebClient).DownloadFile($pawnUrl, (Join-Path $stage 'PawnIO_setup.exe'))
+        if ((Get-FileHash (Join-Path $stage 'PawnIO_setup.exe') -Algorithm SHA256).Hash -ne $pawnSha) { throw 'PawnIO_setup.exe SHA-256 mismatch' }
+    } catch {
+        Remove-Item $stage -Recurse -Force -ErrorAction SilentlyContinue
+        throw ('PawnIO download failed: ' + $_.Exception.Message + ' (run again when online, or use -NoPawnIO)')
+    }
 }
 # Run by the elevated step only after it has copied the setup into the admin-only folder and re-checked it there.
 $pawnStep = if ($needPawn) { @"
@@ -81,6 +88,8 @@ $result = if (Test-Path "$stage\result.txt") { Get-Content "$stage\result.txt" }
 Remove-Item $stage -Recurse -Force -ErrorAction SilentlyContinue
 $result
 if ($result -notcontains 'ok') { throw "install failed: $result" }
+if ($result -match '^pawnio exit') { Write-Warning 'PawnIO did not install, so fan speed and EC temperatures will not be readable. Everything else works. Install it from https://github.com/namazso/PawnIO.Setup/releases' }
+if ($result -contains 'pawnio ok (restart needed)') { Write-Warning 'PawnIO was installed. Restart Windows once before fan readings work.' }
 
 # Old per-user copy: remove the exe and module so nothing can run from there any more.
 $old = Join-Path $env:LOCALAPPDATA 'Programs\HPControlPanel'

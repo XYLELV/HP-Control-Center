@@ -253,6 +253,14 @@ namespace HPControlPanel
 
         public static bool SetPlan(Guid g) { return PowerSetActiveScheme(IntPtr.Zero, ref g) == 0; }
 
+        // Windows applies the power-mode overlay (省电 / 平衡 / 高性能) only while the Balanced plan is active.
+        public static readonly Guid BalancedPlan = new Guid("381b4222-f694-41f0-9685-ff5bb260df2e");
+        public static bool PowerModeAvailable()
+        {
+            Guid g = ActivePlan();
+            return g == Guid.Empty || g == BalancedPlan;
+        }
+
         // ---------- Session actions ----------
         [DllImport("user32.dll")] static extern bool LockWorkStation();
         [DllImport("user32.dll")] static extern IntPtr SendMessage(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);

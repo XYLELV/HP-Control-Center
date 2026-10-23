@@ -27,6 +27,15 @@ EC 是主板上的一块小芯片，里面有 256 个字节的“格子”。风
 
 其他主板还不知道这些格子在哪里，所以显示「此机型未适配」：风扇转速读不到，CPU 温度改用 Windows 的 ACPI 温度区；其余功能（占用、电池、亮度、音量、开关等）都正常。要适配新机型，在 `src/Machine.cs` 的 `EcProfile.For` 里加一项寄存器表。
 
+## 下载使用
+
+到 [Releases](../../releases) 下载 `HP-Control-Center-*.zip`，解压后：
+
+- 双击 `Install.cmd`：安装到 `C:\Program Files\HPControlPanel`，加开始菜单项，没有 PawnIO 时自动装上（会弹一次管理员确认）。
+- 或者直接双击 `HPControlPanel.exe` 免安装使用（同一文件夹里要有 `LpcACPIEC.bin`）。
+
+exe 没有代码签名，第一次打开 Windows 可能提示「已保护你的电脑」，点「更多信息 → 仍要运行」即可；不放心可以按下面的方法自己从源码编译。
+
 ## 运行要求
 
 - Windows 10 / 11（64 位），.NET Framework 4.8（系统自带）
@@ -52,6 +61,7 @@ powershell -ExecutionPolicy Bypass -File install.ps1
 ## 说明
 
 - 作者：HoShino_Rizu
+- 完全开源，欢迎有能力的代码高手一起改进，Issue / PR 都欢迎。这个项目只是闲着没事用 Claude 做着玩的。
 - 非 HP 官方软件；HP 是惠普公司的商标。
 - 图片（HP 娘、图标、界面效果图）由 GPT image 模型制作。
 - 代码由 Claude Opus 5.5 全程编写。

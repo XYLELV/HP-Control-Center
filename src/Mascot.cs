@@ -27,6 +27,7 @@ namespace HPControlPanel
         public int Volume = -1;
         public bool Muted;
         public Guid PowerMode;
+        public bool PowerModeAvailable = true;   // false while a plan other than Balanced is active
         public Dictionary<AppEntry, bool> Running = new Dictionary<AppEntry, bool>();
     }
 

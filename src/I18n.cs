@@ -33,8 +33,18 @@ namespace HPControlPanel
 
         public static string S(string cn, string en) { return En ? en : Tw ? ToTw(cn) : cn; }
         public static string S(string cn, string tw, string en) { return En ? en : Tw ? (tw ?? ToTw(cn)) : cn; }
-        public static string F(string cn, string en, params object[] a) { return string.Format(S(cn, en), a); }
-        public static string F3(string cn, string tw, string en, params object[] a) { return string.Format(S(cn, tw, en), a); }
+        public static string F(string cn, string en, params object[] a) { CheckArgs(en, a); return string.Format(S(cn, en), a); }
+        public static string F3(string cn, string tw, string en, params object[] a) { CheckArgs(en, a); return string.Format(S(cn, tw, en), a); }
+
+        // A Traditional text passed to F (meant for F3) compiles fine but becomes format argument {0} and is never
+        // shown. Every caller passes exactly the arguments its English text uses, so a surplus means that mistake.
+        static void CheckArgs(string en, object[] a)
+        {
+            int max = -1;
+            foreach (System.Text.RegularExpressions.Match m in System.Text.RegularExpressions.Regex.Matches(en, @"\{(\d+)"))
+                max = Math.Max(max, int.Parse(m.Groups[1].Value));
+            if (a.Length > max + 1) throw new ArgumentException("L.F: more arguments than the text uses (Traditional text needs L.F3): " + en);
+        }
 
         public static string Duration(int minutes)
         {
@@ -72,6 +82,8 @@ namespace HPControlPanel
             { "当前值", new[] { "目前數值", "Value" } },
             { "状态 / 容量", new[] { null, "Status / capacity" } },
             { "曲线末端：—", new[] { "最新：—", "Latest: —" } },
+            { "CPU 温度 · 最近 60 秒", new[] { null, "CPU temp · last 60 s" } },
+            { "刷新间隔  1 秒", new[] { "更新頻率  1 秒", "Refresh every 1 s" } },
             { "常用控制", new[] { null, "Quick controls" } },
             { "亮度", new[] { null, "Brightness" } },
             { "音量", new[] { null, "Volume" } },

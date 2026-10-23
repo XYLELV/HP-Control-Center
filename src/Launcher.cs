@@ -70,10 +70,15 @@ namespace HPControlPanel
             return false;
         }
 
-        // This app runs as administrator; starting through explorer.exe keeps the launched program un-elevated.
         public static void Open(AppEntry a)
         {
-            string arg = a.Close == CloseKind.ExplorerWindows ? "" : "\"" + a.Target + "\"";
+            ShellOpen(a.Close == CloseKind.ExplorerWindows ? "" : "\"" + a.Target + "\"");
+        }
+
+        // This app runs as administrator; starting through explorer.exe keeps whatever it opens (a program,
+        // a web page, a Control Panel item) un-elevated.
+        public static void ShellOpen(string arg)
+        {
             Process.Start(new ProcessStartInfo(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "explorer.exe"), arg) { UseShellExecute = false });
         }
 
