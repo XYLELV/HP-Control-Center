@@ -90,16 +90,31 @@ namespace HPControlPanel
     {
         public static string TouchpadId, CameraId;
 
+        // How likely a Camera / Image class device is the normal webcam: -1 = never (Windows Hello IR sensor,
+        // depth camera, scanner), higher = better. A "Camera" class device with a camera-like name wins.
+        static int WebcamScore(string cls, string name)
+        {
+            if (Regex.IsMatch(name, @"\bIR\b|infrared|hello|depth|红外|紅外", RegexOptions.IgnoreCase)) return -1;
+            bool camName = Regex.IsMatch(name, @"cam|video|摄像|攝影|相机|相機", RegexOptions.IgnoreCase);
+            if (cls == "Image" && !camName) return -1;   // the Image class also holds scanners
+            return (cls == "Camera" ? 2 : 0) + (camName ? 1 : 0);
+        }
+
         // Looked up by class and name, so it works for ELAN / Synaptics touchpads and any webcam.
         public static void Detect()
         {
             try
             {
+                int bestCamera = -1;
                 using (var q = new ManagementObjectSearcher("SELECT DeviceID, Name, PNPClass FROM Win32_PnPEntity WHERE PNPClass='HIDClass' OR PNPClass='Mouse' OR PNPClass='Camera' OR PNPClass='Image'"))
                     foreach (ManagementObject mo in q.Get())
                     {
-                        string id = Convert.ToString(mo["DeviceID"]), name = Convert.ToString(mo["Name"]), cls = Convert.ToString(mo["PNPClass"]);
-                        if ((cls == "Camera" || cls == "Image") && CameraId == null) CameraId = id;
+                        string id = Convert.ToString(mo["DeviceID"]), name = Convert.ToString(mo["Name"]) ?? "", cls = Convert.ToString(mo["PNPClass"]);
+                        if (cls == "Camera" || cls == "Image")
+                        {
+                            int score = WebcamScore(cls, name);
+                            if (score > bestCamera) { bestCamera = score; CameraId = id; }
+                        }
                         if ((cls == "HIDClass" || cls == "Mouse") && Regex.IsMatch(name, @"precision ?touch ?pad|touch ?pad|触摸板|触控板", RegexOptions.IgnoreCase))
                         {
                             // Prefer the precision-touchpad collection over plain filter/HID entries.

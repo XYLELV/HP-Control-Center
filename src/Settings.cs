@@ -113,7 +113,10 @@ namespace HPControlPanel
         }
 
         // ---------- Autostart: a logon task with highest privileges, so no UAC prompt at each login ----------
-        const string TaskName = "HPControlPanel";
+        // One task per Windows account, so on a PC with several administrators each one's setting is their own.
+        // Versions up to 1.0.0 used one shared name; that task is taken over by the account it belongs to.
+        const string LegacyTaskName = "HPControlPanel";
+        static string TaskName { get { return "HPControlPanel-" + System.Security.Principal.WindowsIdentity.GetCurrent().User.Value; } }
 
         // Registered through the Task Scheduler COM API (no temp file another process could swap).
         static dynamic TaskFolder()
@@ -123,22 +126,40 @@ namespace HPControlPanel
             return svc.GetFolder("\\");
         }
 
-        static dynamic FindTask()
+        static dynamic FindTask(string name)
         {
-            try { return TaskFolder().GetTask(TaskName); } catch { return null; }
+            try { return TaskFolder().GetTask(name); } catch { return null; }
+        }
+
+        // The old shared task, but only when it runs as this account.
+        static dynamic MyLegacyTask()
+        {
+            try
+            {
+                dynamic t = FindTask(LegacyTaskName);
+                if (t == null) return null;
+                string uid = Convert.ToString(t.Definition.Principal.UserId) ?? "";
+                var me = System.Security.Principal.WindowsIdentity.GetCurrent();
+                bool mine = uid.Equals(me.Name, StringComparison.OrdinalIgnoreCase) || uid.Equals(me.User.Value, StringComparison.OrdinalIgnoreCase)
+                         || uid.Equals(Environment.UserName, StringComparison.OrdinalIgnoreCase);
+                return mine ? t : null;
+            }
+            catch { return null; }
         }
 
         public static bool AutoStartEnabled()
         {
-            return FindTask() != null;
+            return FindTask(TaskName) != null || MyLegacyTask() != null;
         }
 
-        // An existing task that points at another exe (e.g. the old user-writable install) is re-pointed here.
+        // Moves this account's old shared task to its own name, and re-points a task that runs another exe
+        // (e.g. the old user-writable install) at this one.
         public static void RepairAutoStart()
         {
             try
             {
-                dynamic t = FindTask();
+                if (MyLegacyTask() != null && SetAutoStart(true)) TaskFolder().DeleteTask(LegacyTaskName, 0);
+                dynamic t = FindTask(TaskName);
                 if (t == null) return;
                 string path = t.Definition.Actions.Item(1).Path;
                 if (!string.Equals(path, Process.GetCurrentProcess().MainModule.FileName, StringComparison.OrdinalIgnoreCase)) SetAutoStart(true);
@@ -150,7 +171,12 @@ namespace HPControlPanel
         {
             try
             {
-                if (!on) { if (FindTask() != null) TaskFolder().DeleteTask(TaskName, 0); return true; }
+                if (!on)
+                {
+                    if (FindTask(TaskName) != null) TaskFolder().DeleteTask(TaskName, 0);
+                    if (MyLegacyTask() != null) TaskFolder().DeleteTask(LegacyTaskName, 0);
+                    return true;
+                }
                 // XML so the task also starts on battery (the simple onlogon defaults are AC-only).
                 string exe = System.Security.SecurityElement.Escape(Process.GetCurrentProcess().MainModule.FileName);
                 string user = System.Security.SecurityElement.Escape(Environment.UserDomainName + "\\" + Environment.UserName);

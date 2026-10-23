@@ -55,10 +55,13 @@ $pawnStep = if ($needPawn) { @"
 # Verified AFTER copying, on the copy in the admin-only destination (checking the staged file first would leave
 # a window to swap it between the check and the copy).
 $checks = ($files | ForEach-Object { "if ((Get-FileHash (Join-Path `$dst '$_') -Algorithm SHA256).Hash -ne '$($hashes[$_])') { Remove-Item (Join-Path `$dst '$_') -Force; throw 'file changed after staging: $_' }" }) -join "`n"
+# Paths go into the elevated script as single-quoted literals, so any ' in them (e.g. a user named O'Brien) is doubled.
+$stageLit = $stage.Replace("'", "''")
+$dstLit = $dst.Replace("'", "''")
 $elevated = @"
 `$ErrorActionPreference = 'Stop'
-`$stage = '$stage'
-`$dst = '$dst'
+`$stage = '$stageLit'
+`$dst = '$dstLit'
 `$log = Join-Path `$stage 'result.txt'
 try {
     New-Item -ItemType Directory -Force -Path `$dst | Out-Null
@@ -76,8 +79,11 @@ $pawnStep
     [HpcpNotify]::SHChangeNotify(2, 5, `$common, [IntPtr]::Zero)
     [HpcpNotify]::SHChangeNotify(0x1000, 5, (Split-Path `$common), [IntPtr]::Zero)
     'start menu ok' | Add-Content `$log
-    `$task = Get-ScheduledTask -TaskName 'HPControlPanel' -ErrorAction SilentlyContinue
-    if (`$task) { Set-ScheduledTask -TaskName 'HPControlPanel' -Action (New-ScheduledTaskAction -Execute `$exe) | Out-Null; 'task repointed' | Add-Content `$log }
+    # Autostart tasks: one per account ("HPControlPanel-<SID>"), plus the older shared "HPControlPanel".
+    foreach (`$t in @(Get-ScheduledTask -TaskName 'HPControlPanel*' -ErrorAction SilentlyContinue)) {
+        try { Set-ScheduledTask -TaskName `$t.TaskName -TaskPath `$t.TaskPath -Action (New-ScheduledTaskAction -Execute `$exe) | Out-Null; 'task repointed' | Add-Content `$log }
+        catch { ('task not repointed: ' + `$t.TaskName) | Add-Content `$log }
+    }
     'ok' | Add-Content `$log
 } catch { ('error: ' + `$_.Exception.Message) | Add-Content `$log }
 "@
