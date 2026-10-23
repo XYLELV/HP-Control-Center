@@ -75,7 +75,8 @@ $pawnStep
 } catch { ('error: ' + `$_.Exception.Message) | Add-Content `$log }
 "@
 $enc = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($elevated))
-$p = Start-Process powershell.exe -Verb RunAs -Wait -PassThru -WindowStyle Hidden -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', $enc
+try { $p = Start-Process powershell.exe -Verb RunAs -Wait -PassThru -WindowStyle Hidden -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', $enc }
+catch { }   # UAC declined: reported below as "no result"
 $result = if (Test-Path "$stage\result.txt") { Get-Content "$stage\result.txt" } else { 'no result (UAC declined?)' }
 Remove-Item $stage -Recurse -Force -ErrorAction SilentlyContinue
 $result
