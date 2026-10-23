@@ -2,3 +2,4 @@ bin/
 bin-snap/
 tools/*.exe
 *.log
+dist/
