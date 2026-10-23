@@ -1,0 +1,736 @@
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="HP 控制台" Width="1280" Height="720" MinWidth="820" MinHeight="480"
+        WindowStartupLocation="CenterScreen" Background="#FAFBFC"
+        FontFamily="Microsoft YaHei UI" FontSize="14" Foreground="#1F2328"
+        UseLayoutRounding="True" TextOptions.TextFormattingMode="Display">
+  <Window.Resources>
+    <SolidColorBrush x:Key="AccentBrush" Color="#0F6CBD"/>
+    <SolidColorBrush x:Key="AccentSoftBrush" Color="#EAF2FB"/>
+    <SolidColorBrush x:Key="SubBrush" Color="#5B6470"/>
+    <SolidColorBrush x:Key="FaintBrush" Color="#8A929C"/>
+    <SolidColorBrush x:Key="LineBrush" Color="#E6E8EC"/>
+    <SolidColorBrush x:Key="RowLineBrush" Color="#EEF0F3"/>
+
+    <Style x:Key="Card" TargetType="Border">
+      <Setter Property="Background" Value="White"/>
+      <Setter Property="BorderBrush" Value="{StaticResource LineBrush}"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="CornerRadius" Value="8"/>
+      <Setter Property="Padding" Value="20,12,20,12"/>
+    </Style>
+    <Style x:Key="CardTitle" TargetType="TextBlock">
+      <Setter Property="FontSize" Value="16"/>
+      <Setter Property="Foreground" Value="#1F2328"/>
+    </Style>
+    <Style x:Key="Small" TargetType="TextBlock">
+      <Setter Property="FontSize" Value="12"/>
+      <Setter Property="Foreground" Value="{StaticResource SubBrush}"/>
+    </Style>
+
+    <Style x:Key="NavItem" TargetType="RadioButton">
+      <Setter Property="GroupName" Value="Nav"/>
+      <Setter Property="Height" Value="38"/>
+      <Setter Property="Margin" Value="0,0,0,4"/>
+      <Setter Property="FontSize" Value="15"/>
+      <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="RadioButton">
+            <Border x:Name="b" CornerRadius="6" Background="Transparent" Padding="16,0">
+              <ContentPresenter VerticalAlignment="Center"/>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="b" Property="Background" Value="#F0F2F5"/></Trigger>
+              <Trigger Property="IsChecked" Value="True"><Setter TargetName="b" Property="Background" Value="#E9EDF2"/></Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <Style x:Key="OutlineButton" TargetType="Button">
+      <Setter Property="Height" Value="32"/>
+      <Setter Property="FontSize" Value="13"/>
+      <Setter Property="Foreground" Value="#1F2328"/>
+      <Setter Property="Padding" Value="10,0"/>
+      <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border x:Name="b" CornerRadius="4" Background="White" BorderBrush="#C9CED6" BorderThickness="1" Padding="{TemplateBinding Padding}">
+              <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="b" Property="Background" Value="#F3F5F8"/></Trigger>
+              <Trigger Property="IsPressed" Value="True"><Setter TargetName="b" Property="Background" Value="#E6E9EE"/></Trigger>
+              <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.5"/></Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <Style x:Key="DarkButton" TargetType="Button">
+      <Setter Property="Height" Value="34"/>
+      <Setter Property="Foreground" Value="White"/>
+      <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border x:Name="b" CornerRadius="4" Background="#1B2533" Padding="22,0">
+              <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="b" Property="Background" Value="#2C3A4D"/></Trigger>
+              <Trigger Property="IsPressed" Value="True"><Setter TargetName="b" Property="Background" Value="#111820"/></Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <Style x:Key="LinkButton" TargetType="Button">
+      <Setter Property="Foreground" Value="{StaticResource SubBrush}"/>
+      <Setter Property="FontSize" Value="13"/>
+      <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <ContentPresenter/>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True"><Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/></Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <Style x:Key="SegItem" TargetType="RadioButton">
+      <Setter Property="MinWidth" Value="76"/>
+      <Setter Property="Height" Value="28"/>
+      <Setter Property="FontSize" Value="13"/>
+      <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="RadioButton">
+            <Border x:Name="b" CornerRadius="4" Background="Transparent" Padding="10,0">
+              <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="b" Property="Background" Value="#F4F6F8"/></Trigger>
+              <Trigger Property="IsChecked" Value="True">
+                <Setter TargetName="b" Property="Background" Value="White"/>
+                <Setter TargetName="b" Property="Effect"><Setter.Value><DropShadowEffect BlurRadius="4" ShadowDepth="1" Opacity="0.12"/></Setter.Value></Setter>
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+    <!-- Quick switch tile on the home page -->
+    <Style x:Key="Tile" TargetType="ToggleButton">
+      <Setter Property="Height" Value="36"/>
+      <Setter Property="Margin" Value="0,0,10,0"/>
+      <Setter Property="FontSize" Value="13"/>
+      <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="ToggleButton">
+            <Border x:Name="b" CornerRadius="6" Background="White" BorderBrush="#C9CED6" BorderThickness="1" Padding="10,0">
+              <ContentPresenter VerticalAlignment="Center"/>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="b" Property="Background" Value="#F3F5F8"/></Trigger>
+              <Trigger Property="IsChecked" Value="True">
+                <Setter TargetName="b" Property="Background" Value="{DynamicResource AccentSoftBrush}"/>
+                <Setter TargetName="b" Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+              </Trigger>
+              <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.5"/></Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+    <Style x:Key="SegHost" TargetType="Border">
+      <Setter Property="Background" Value="#E9EDF2"/>
+      <Setter Property="CornerRadius" Value="6"/>
+      <Setter Property="Padding" Value="3"/>
+      <Setter Property="HorizontalAlignment" Value="Left"/>
+    </Style>
+
+    <Style x:Key="FillRepeat" TargetType="RepeatButton">
+      <Setter Property="Focusable" Value="False"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="RepeatButton">
+            <Border Height="4" CornerRadius="2" Background="{DynamicResource AccentBrush}"/>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+    <Style x:Key="EmptyRepeat" TargetType="RepeatButton">
+      <Setter Property="Focusable" Value="False"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="RepeatButton">
+            <Border Background="Transparent"/>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+    <Style TargetType="Slider">
+      <Setter Property="Minimum" Value="0"/>
+      <Setter Property="Maximum" Value="100"/>
+      <Setter Property="IsMoveToPointEnabled" Value="True"/>
+      <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Slider">
+            <Grid Height="22">
+              <Border Height="4" CornerRadius="2" Background="#E1E5EA" VerticalAlignment="Center"/>
+              <Track x:Name="PART_Track">
+                <Track.DecreaseRepeatButton><RepeatButton Command="Slider.DecreaseLarge" Style="{StaticResource FillRepeat}"/></Track.DecreaseRepeatButton>
+                <Track.IncreaseRepeatButton><RepeatButton Command="Slider.IncreaseLarge" Style="{StaticResource EmptyRepeat}"/></Track.IncreaseRepeatButton>
+                <Track.Thumb>
+                  <Thumb>
+                    <Thumb.Template>
+                      <ControlTemplate TargetType="Thumb">
+                        <Ellipse Width="14" Height="14" Fill="{DynamicResource AccentBrush}" Stroke="White" StrokeThickness="2">
+                          <Ellipse.Effect><DropShadowEffect BlurRadius="4" ShadowDepth="1" Opacity="0.25"/></Ellipse.Effect>
+                        </Ellipse>
+                      </ControlTemplate>
+                    </Thumb.Template>
+                  </Thumb>
+                </Track.Thumb>
+              </Track>
+            </Grid>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <Style x:Key="Switch" TargetType="CheckBox">
+      <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="CheckBox">
+            <Border x:Name="track" Width="44" Height="22" CornerRadius="11" Background="White" BorderBrush="#8A929C" BorderThickness="1">
+              <Ellipse x:Name="knob" Width="12" Height="12" Fill="#5B6470" HorizontalAlignment="Left" Margin="5,0"/>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsChecked" Value="True">
+                <Setter TargetName="track" Property="Background" Value="{DynamicResource AccentBrush}"/>
+                <Setter TargetName="track" Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+                <Setter TargetName="knob" Property="Fill" Value="White"/>
+                <Setter TargetName="knob" Property="HorizontalAlignment" Value="Right"/>
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <Style x:Key="RowLine" TargetType="Border">
+      <Setter Property="BorderBrush" Value="{StaticResource RowLineBrush}"/>
+      <Setter Property="BorderThickness" Value="0,0,0,1"/>
+      <Setter Property="Padding" Value="0,8"/>
+    </Style>
+    <Style x:Key="Page" TargetType="ScrollViewer">
+      <Setter Property="Grid.Row" Value="2"/>
+      <Setter Property="Visibility" Value="Collapsed"/>
+      <Setter Property="VerticalScrollBarVisibility" Value="Auto"/>
+      <Setter Property="HorizontalScrollBarVisibility" Value="Disabled"/>
+    </Style>
+  </Window.Resources>
+
+  <!-- Root is scaled down in code when the window is smaller than the design size (1180 x 640). -->
+  <Grid x:Name="Host" ClipToBounds="True">
+  <Grid x:Name="Root" HorizontalAlignment="Left" VerticalAlignment="Top">
+    <Grid.ColumnDefinitions>
+      <ColumnDefinition Width="204"/>
+      <ColumnDefinition Width="*"/>
+    </Grid.ColumnDefinitions>
+
+    <!-- ================= Sidebar ================= -->
+    <Border BorderBrush="{StaticResource LineBrush}" BorderThickness="0,0,1,0" Margin="0,16,0,16">
+      <Grid Margin="14,0,14,0">
+        <Grid.RowDefinitions>
+          <RowDefinition Height="Auto"/>
+          <RowDefinition Height="*"/>
+          <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <StackPanel Margin="12,4,0,24">
+          <StackPanel Orientation="Horizontal">
+            <Image x:Name="SideLogo" Width="34" Height="34" Margin="0,0,10,0" VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality"/>
+            <TextBlock Text="HP" FontSize="30" Foreground="{DynamicResource AccentBrush}" FontFamily="Segoe UI" VerticalAlignment="Center"/>
+          </StackPanel>
+          <TextBlock Text="控制台" FontSize="22"/>
+          <TextBlock x:Name="SideModelText" Text="" FontSize="13" Foreground="{StaticResource SubBrush}" Margin="0,8,0,0" TextTrimming="CharacterEllipsis"/>
+        </StackPanel>
+        <StackPanel Grid.Row="1">
+          <RadioButton x:Name="NavHome" Style="{StaticResource NavItem}" Content="系统概览" IsChecked="True"/>
+          <RadioButton x:Name="NavDetails" Style="{StaticResource NavItem}" Content="详细配置"/>
+          <RadioButton x:Name="NavDisplay" Style="{StaticResource NavItem}" Content="屏幕与声音"/>
+          <RadioButton x:Name="NavPower" Style="{StaticResource NavItem}" Content="电源与电池"/>
+          <RadioButton x:Name="NavApps" Style="{StaticResource NavItem}" Content="快捷启动"/>
+          <RadioButton x:Name="NavSettings" Style="{StaticResource NavItem}">
+            <StackPanel Orientation="Horizontal">
+              <TextBlock Text="设置"/>
+              <!-- Shown only when a newer version is out -->
+              <Ellipse x:Name="UpdateDot" Width="7" Height="7" Fill="{DynamicResource AccentBrush}" Margin="8,0,0,0" VerticalAlignment="Center" Visibility="Collapsed"/>
+            </StackPanel>
+          </RadioButton>
+        </StackPanel>
+        <StackPanel Grid.Row="2" Margin="10,0,0,0">
+          <TextBlock Text="系统操作" Style="{StaticResource Small}" Margin="0,0,0,10"/>
+          <UniformGrid Columns="2" HorizontalAlignment="Left">
+            <Button x:Name="LockBtn" Style="{StaticResource OutlineButton}" Content="锁屏" Width="74" Padding="2,0" Margin="0,0,8,8"/>
+            <Button x:Name="SleepBtn" Style="{StaticResource OutlineButton}" Content="睡眠" Width="74" Padding="2,0" Margin="0,0,0,8"/>
+            <Button x:Name="RestartBtn" Style="{StaticResource OutlineButton}" Content="重启" Width="74" Padding="2,0" Margin="0,0,8,0"/>
+            <Button x:Name="ShutdownBtn" Style="{StaticResource OutlineButton}" Content="关机" Width="74" Padding="2,0"/>
+          </UniformGrid>
+          <TextBlock Text="重启与关机需确认" Style="{StaticResource Small}" Margin="0,10,0,0"/>
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <!-- ================= Pages ================= -->
+    <Grid Grid.Column="1" Margin="24,14,24,14">
+      <Grid.RowDefinitions>
+        <RowDefinition Height="Auto"/>
+        <RowDefinition Height="Auto"/>
+        <RowDefinition Height="*"/>
+      </Grid.RowDefinitions>
+
+      <Grid>
+        <StackPanel>
+          <TextBlock x:Name="PageTitleText" FontSize="24" Text="系统概览"/>
+          <TextBlock x:Name="ModelText" Text="" FontSize="13" Foreground="{StaticResource SubBrush}" Margin="0,4,0,0" TextTrimming="CharacterEllipsis"/>
+        </StackPanel>
+        <Button x:Name="RefreshBtn" Style="{StaticResource DarkButton}" Content="刷新数据" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,4,0,0"/>
+      </Grid>
+
+      <Border Grid.Row="1" Background="#EEF1F4" CornerRadius="6" Padding="14,7" Margin="0,10,0,12">
+        <Grid>
+          <TextBlock x:Name="StatusText" Style="{StaticResource Small}" Text="正在读取…" Margin="0,0,120,0" TextTrimming="CharacterEllipsis"/>
+          <TextBlock x:Name="IntervalText" Style="{StaticResource Small}" HorizontalAlignment="Right" Text="刷新间隔  1 秒"/>
+        </Grid>
+      </Border>
+
+      <!-- ===== Page: 系统概览 (fits without scrolling) ===== -->
+      <Grid x:Name="PageHome" Grid.Row="2">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="1.8*"/>
+          <ColumnDefinition Width="16"/>
+          <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+          <RowDefinition Height="1.05*"/>
+          <RowDefinition Height="14"/>
+          <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Hardware table -->
+        <Border Style="{StaticResource Card}">
+          <Grid>
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto"/>
+              <RowDefinition Height="Auto"/>
+              <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+            <TextBlock Text="硬件监控" Style="{StaticResource CardTitle}"/>
+            <Grid Grid.Row="1" Margin="0,4,0,0">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/>
+              </Grid.ColumnDefinitions>
+              <TextBlock Text="传感器" Style="{StaticResource Small}" FontSize="11"/>
+              <TextBlock Grid.Column="1" Text="当前值" Style="{StaticResource Small}" FontSize="11" HorizontalAlignment="Right"/>
+              <TextBlock Grid.Column="2" Text="状态 / 容量" Style="{StaticResource Small}" FontSize="11" HorizontalAlignment="Right"/>
+            </Grid>
+            <UniformGrid x:Name="HwRows" Grid.Row="2" Columns="1"/>
+          </Grid>
+        </Border>
+
+        <!-- Temperature chart -->
+        <Border Grid.Column="2" Style="{StaticResource Card}">
+          <Grid>
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto"/>
+              <RowDefinition Height="*"/>
+              <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+            <TextBlock x:Name="ChartTitle" Text="CPU 温度 · 最近 60 秒" Style="{StaticResource CardTitle}"/>
+            <Canvas x:Name="ChartCanvas" Grid.Row="1" Margin="0,8,0,4" ClipToBounds="True"/>
+            <TextBlock x:Name="ChartTailText" Grid.Row="2" Style="{StaticResource Small}" Text="曲线末端：—"/>
+          </Grid>
+        </Border>
+
+        <!-- Controls + quick launch -->
+        <Grid Grid.Row="2">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="14"/>
+            <RowDefinition Height="*"/>
+          </Grid.RowDefinitions>
+          <Border Style="{StaticResource Card}">
+            <Grid>
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="*"/>
+              </Grid.RowDefinitions>
+              <TextBlock Text="常用控制" Style="{StaticResource CardTitle}"/>
+              <Grid Grid.Row="1" VerticalAlignment="Center">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="46"/>
+                  <ColumnDefinition Width="24"/>
+                  <ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="46"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="亮度" Foreground="{StaticResource SubBrush}" VerticalAlignment="Center" Margin="0,0,14,0"/>
+                <Slider x:Name="HomeBrightness" Grid.Column="1" VerticalAlignment="Center"/>
+                <TextBlock x:Name="HomeBrightnessText" Grid.Column="2" Text="—" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                <TextBlock Grid.Column="4" Text="音量" Foreground="{StaticResource SubBrush}" VerticalAlignment="Center" Margin="0,0,14,0"/>
+                <Slider x:Name="HomeVolume" Grid.Column="5" VerticalAlignment="Center"/>
+                <TextBlock x:Name="HomeVolumeText" Grid.Column="6" Text="—" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+              </Grid>
+              <Grid Grid.Row="2" VerticalAlignment="Center">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                <TextBlock Text="电源模式" Foreground="{StaticResource SubBrush}" VerticalAlignment="Center" Margin="0,0,14,0"/>
+                <Border Grid.Column="1" Style="{StaticResource SegHost}">
+                  <StackPanel Orientation="Horizontal">
+                    <RadioButton x:Name="HomePowerSaver" GroupName="HomePower" Style="{StaticResource SegItem}" Content="省电"/>
+                    <RadioButton x:Name="HomePowerBalanced" GroupName="HomePower" Style="{StaticResource SegItem}" Content="平衡"/>
+                    <RadioButton x:Name="HomePowerPerf" GroupName="HomePower" Style="{StaticResource SegItem}" Content="高性能"/>
+                  </StackPanel>
+                </Border>
+                <Button x:Name="HomeMuteBtn" Grid.Column="1" Style="{StaticResource OutlineButton}" Content="静音" Width="96" HorizontalAlignment="Right"/>
+              </Grid>
+            </Grid>
+          </Border>
+
+          <Border Grid.Row="2" Style="{StaticResource Card}">
+            <Grid>
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+              </Grid.RowDefinitions>
+              <TextBlock Text="快捷开关" Style="{StaticResource CardTitle}"/>
+              <UniformGrid x:Name="ToggleTiles" Grid.Row="1" Rows="1" VerticalAlignment="Center"/>
+            </Grid>
+          </Border>
+        </Grid>
+
+        <!-- HP 娘 -->
+        <Border Grid.Row="2" Grid.Column="2" Style="{StaticResource Card}" Background="#EEF3F8" BorderBrush="#E1E8F0" Padding="0" ClipToBounds="True">
+          <Grid>
+            <Image x:Name="GirlImage" Stretch="Uniform" HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                   Margin="0,10,0,0" RenderOptions.BitmapScalingMode="HighQuality">
+              <Image.RenderTransform><TranslateTransform/></Image.RenderTransform>
+            </Image>
+            <Grid Margin="18,12,0,12" HorizontalAlignment="Left" Width="160" IsHitTestVisible="False">
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+              </Grid.RowDefinitions>
+              <StackPanel>
+                <TextBlock Text="HP 娘" Style="{StaticResource CardTitle}"/>
+                <TextBlock x:Name="GirlBattery" Text="电量 —" FontSize="14" Margin="0,10,0,0" TextWrapping="Wrap"/>
+                <TextBlock x:Name="GirlLine" Text="你好呀。" FontSize="12" Foreground="{StaticResource SubBrush}" TextWrapping="Wrap" Margin="0,8,0,0"/>
+              </StackPanel>
+              <StackPanel Grid.Row="2">
+                <TextBlock x:Name="WeatherText" Text="天气：获取中…" FontSize="12" Foreground="{StaticResource SubBrush}" TextWrapping="Wrap" Margin="0,0,0,2"/>
+                <TextBlock x:Name="ClockText" Text="00:00" FontSize="30" FontFamily="Segoe UI"/>
+                <TextBlock x:Name="DateText" Text="" FontSize="12" Foreground="{StaticResource SubBrush}" Margin="0,2,0,0"/>
+              </StackPanel>
+            </Grid>
+          </Grid>
+        </Border>
+      </Grid>
+
+      <!-- ===== Page: 详细配置 ===== -->
+      <ScrollViewer x:Name="PageDetails" Style="{StaticResource Page}">
+        <StackPanel MaxWidth="980" HorizontalAlignment="Stretch">
+          <Border Style="{StaticResource Card}" Padding="24,16">
+            <StackPanel>
+              <Grid>
+                <TextBlock Text="详细信息" Style="{StaticResource CardTitle}" VerticalAlignment="Center"/>
+                <Button x:Name="CopyDetailsBtn" Style="{StaticResource OutlineButton}" Content="复制全部" HorizontalAlignment="Right" Width="96"/>
+              </Grid>
+              <Grid x:Name="DetailsGrid" Margin="0,12,0,0">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="96"/>
+                  <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+              </Grid>
+              <TextBlock x:Name="DetailsStatus" Style="{StaticResource Small}" Text="正在读取硬件信息…" Margin="0,8,0,0"/>
+            </StackPanel>
+          </Border>
+        </StackPanel>
+      </ScrollViewer>
+
+      <!-- ===== Page: 屏幕与声音 ===== -->
+      <ScrollViewer x:Name="PageDisplay" Style="{StaticResource Page}">
+        <StackPanel MaxWidth="980" HorizontalAlignment="Stretch">
+          <Border Style="{StaticResource Card}" Padding="20,16">
+            <StackPanel>
+              <TextBlock Text="屏幕亮度" Style="{StaticResource CardTitle}"/>
+              <TextBlock Text="调节笔记本内置屏幕的亮度（外接显示器不支持）。" Style="{StaticResource Small}" Margin="0,4,0,0"/>
+              <Grid Margin="0,16,0,0">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="72"/></Grid.ColumnDefinitions>
+                <Slider x:Name="PageBrightness" VerticalAlignment="Center"/>
+                <TextBlock x:Name="PageBrightnessText" Grid.Column="1" Text="—" FontSize="20" HorizontalAlignment="Right"/>
+              </Grid>
+              <StackPanel x:Name="BrightnessPresets" Orientation="Horizontal" Margin="0,14,0,0"/>
+            </StackPanel>
+          </Border>
+          <Border Style="{StaticResource Card}" Padding="20,16" Margin="0,14,0,0">
+            <StackPanel>
+              <TextBlock Text="音量" Style="{StaticResource CardTitle}"/>
+              <TextBlock Text="调节默认播放设备的主音量。" Style="{StaticResource Small}" Margin="0,4,0,0"/>
+              <Grid Margin="0,16,0,0">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="72"/></Grid.ColumnDefinitions>
+                <Slider x:Name="PageVolume" VerticalAlignment="Center"/>
+                <TextBlock x:Name="PageVolumeText" Grid.Column="1" Text="—" FontSize="20" HorizontalAlignment="Right"/>
+              </Grid>
+              <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
+                <StackPanel x:Name="VolumePresets" Orientation="Horizontal"/>
+                <Button x:Name="PageMuteBtn" Style="{StaticResource OutlineButton}" Content="静音" Width="96" Margin="12,0,0,0"/>
+              </StackPanel>
+            </StackPanel>
+          </Border>
+        </StackPanel>
+      </ScrollViewer>
+
+      <!-- ===== Page: 电源与电池 ===== -->
+      <ScrollViewer x:Name="PagePower" Style="{StaticResource Page}">
+        <!-- Two columns so battery details and thermal info fit without scrolling. -->
+        <Grid MaxWidth="980" HorizontalAlignment="Stretch" VerticalAlignment="Top">
+          <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="14"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+          <StackPanel>
+            <Border Style="{StaticResource Card}" Padding="20,16">
+              <StackPanel>
+                <TextBlock Text="电源模式" Style="{StaticResource CardTitle}"/>
+                <TextBlock Text="和 Windows 电池图标里的“电源模式”是同一个设置。" Style="{StaticResource Small}" Margin="0,4,0,14" TextWrapping="Wrap"/>
+                <Border Style="{StaticResource SegHost}">
+                  <StackPanel Orientation="Horizontal">
+                    <RadioButton x:Name="PagePowerSaver" GroupName="PagePower" Style="{StaticResource SegItem}" Content="省电" MinWidth="96"/>
+                    <RadioButton x:Name="PagePowerBalanced" GroupName="PagePower" Style="{StaticResource SegItem}" Content="平衡" MinWidth="96"/>
+                    <RadioButton x:Name="PagePowerPerf" GroupName="PagePower" Style="{StaticResource SegItem}" Content="高性能" MinWidth="96"/>
+                  </StackPanel>
+                </Border>
+                <TextBlock x:Name="PowerModeHint" Style="{StaticResource Small}" Margin="0,12,0,0" TextWrapping="Wrap"/>
+              </StackPanel>
+            </Border>
+            <Border Style="{StaticResource Card}" Padding="20,16" Margin="0,14,0,0">
+              <StackPanel>
+                <TextBlock Text="散热信息（只读）" Style="{StaticResource CardTitle}"/>
+                <TextBlock x:Name="ThermalNote" Style="{StaticResource Small}" Margin="0,4,0,4" TextWrapping="Wrap"/>
+                <StackPanel x:Name="ThermalRows"/>
+              </StackPanel>
+            </Border>
+          </StackPanel>
+          <StackPanel Grid.Column="2">
+          <Border Style="{StaticResource Card}" Padding="20,16" VerticalAlignment="Top">
+              <StackPanel>
+                <TextBlock Text="电池" Style="{StaticResource CardTitle}"/>
+                <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                  <TextBlock x:Name="BatteryBig" Text="—" FontSize="34" FontFamily="Segoe UI"/>
+                  <TextBlock x:Name="BatteryState" Text="" FontSize="14" Foreground="{StaticResource SubBrush}" VerticalAlignment="Bottom" Margin="14,0,0,7"/>
+                </StackPanel>
+                <Border Height="8" CornerRadius="4" Background="#E1E5EA" Margin="0,12,0,0">
+                  <!-- Proportional columns: correct even while this page is collapsed (ActualWidth 0). -->
+                  <Grid>
+                    <Grid.ColumnDefinitions>
+                      <ColumnDefinition x:Name="BatteryFill" Width="0*"/>
+                      <ColumnDefinition x:Name="BatteryRest" Width="100*"/>
+                    </Grid.ColumnDefinitions>
+                    <Border CornerRadius="4" Background="{DynamicResource AccentBrush}"/>
+                  </Grid>
+                </Border>
+                <StackPanel x:Name="BatteryRows" Margin="0,10,0,0"/>
+              </StackPanel>
+          </Border>
+          <Border Style="{StaticResource Card}" Padding="20,16" Margin="0,14,0,0">
+            <StackPanel>
+              <Grid>
+                <TextBlock Text="电源计划" Style="{StaticResource CardTitle}" VerticalAlignment="Center"/>
+                <Button x:Name="PowerOptionsBtn" Style="{StaticResource OutlineButton}" Content="自定义…" HorizontalAlignment="Right" MinWidth="88"/>
+              </Grid>
+              <TextBlock Text="控制面板里的电源计划。“自定义”会打开 Windows 电源选项，可以新建或修改计划。" Style="{StaticResource Small}" Margin="0,4,0,12" TextWrapping="Wrap"/>
+              <Border Style="{StaticResource SegHost}">
+                <WrapPanel x:Name="PowerPlans"/>
+              </Border>
+            </StackPanel>
+          </Border>
+          </StackPanel>
+        </Grid>
+      </ScrollViewer>
+
+      <!-- ===== Page: 快捷启动 ===== -->
+      <ScrollViewer x:Name="PageApps" Style="{StaticResource Page}">
+        <StackPanel MaxWidth="980" HorizontalAlignment="Stretch">
+          <Border Style="{StaticResource Card}" Padding="20,16">
+            <StackPanel>
+              <Grid>
+                <TextBlock Text="程序列表" Style="{StaticResource CardTitle}"/>
+                <Button x:Name="AddAppBtn" Style="{StaticResource OutlineButton}" Content="+  添加程序" HorizontalAlignment="Right"/>
+              </Grid>
+              <TextBlock Text="打开或关闭常用程序。关闭写字板、记事本时会提示保存未保存的内容。自己添加的程序可以移除。" Style="{StaticResource Small}" Margin="0,4,0,4" TextWrapping="Wrap"/>
+              <StackPanel x:Name="AppRows"/>
+            </StackPanel>
+          </Border>
+        </StackPanel>
+      </ScrollViewer>
+
+      <!-- ===== Page: 设置 ===== -->
+      <ScrollViewer x:Name="PageSettings" Style="{StaticResource Page}">
+        <!-- Two columns: general settings | weather location + about -->
+        <Grid MaxWidth="980" HorizontalAlignment="Stretch" VerticalAlignment="Top">
+          <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="14"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+          <Border Style="{StaticResource Card}" Padding="20,10" VerticalAlignment="Top">
+            <StackPanel>
+              <Border Style="{StaticResource RowLine}">
+                <Grid>
+                  <StackPanel Orientation="Horizontal">
+                    <Border Width="44" Height="44" CornerRadius="22" Background="#EEF3F8" ClipToBounds="True">
+                      <Image x:Name="AvatarPreview" Stretch="UniformToFill" RenderOptions.BitmapScalingMode="HighQuality"/>
+                    </Border>
+                    <StackPanel VerticalAlignment="Center" Margin="14,0,0,0">
+                      <TextBlock Text="人物图片"/>
+                      <TextBlock x:Name="MascotPathText" Style="{StaticResource Small}" Text="默认：HP 娘" Margin="0,2,0,0"/>
+                    </StackPanel>
+                  </StackPanel>
+                  <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                    <Button x:Name="ChooseImageBtn" Style="{StaticResource OutlineButton}" Content="选择图片…" Margin="0,0,8,0"/>
+                    <Button x:Name="ResetImageBtn" Style="{StaticResource OutlineButton}" Content="恢复默认"/>
+                  </StackPanel>
+                </Grid>
+              </Border>
+              <Border Style="{StaticResource RowLine}">
+                <Grid>
+                  <StackPanel>
+                    <TextBlock Text="语言"/>
+                    <TextBlock Text="切换后控制台会自动重启" Style="{StaticResource Small}" Margin="0,2,0,0"/>
+                  </StackPanel>
+                  <Border Style="{StaticResource SegHost}" HorizontalAlignment="Right" VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal">
+                      <RadioButton x:Name="LangZhCN" GroupName="Lang" Style="{StaticResource SegItem}" Content="简体中文" FontFamily="Microsoft YaHei UI"/>
+                      <RadioButton x:Name="LangZhTW" GroupName="Lang" Style="{StaticResource SegItem}" Content="繁體中文" FontFamily="Microsoft JhengHei UI"/>
+                      <RadioButton x:Name="LangEn" GroupName="Lang" Style="{StaticResource SegItem}" Content="English" FontFamily="Segoe UI"/>
+                    </StackPanel>
+                  </Border>
+                </Grid>
+              </Border>
+              <Border Style="{StaticResource RowLine}">
+                <Grid>
+                  <TextBlock Text="主题色" VerticalAlignment="Center"/>
+                  <Border Style="{StaticResource SegHost}" HorizontalAlignment="Right">
+                    <StackPanel Orientation="Horizontal">
+                      <RadioButton x:Name="ThemeBlue" GroupName="Theme" Style="{StaticResource SegItem}" Content="蓝色"/>
+                      <RadioButton x:Name="ThemePink" GroupName="Theme" Style="{StaticResource SegItem}" Content="粉色"/>
+                      <RadioButton x:Name="ThemePurple" GroupName="Theme" Style="{StaticResource SegItem}" Content="紫色"/>
+                    </StackPanel>
+                  </Border>
+                </Grid>
+              </Border>
+              <Border Style="{StaticResource RowLine}">
+                <Grid>
+                  <StackPanel>
+                    <TextBlock Text="刷新间隔"/>
+                    <TextBlock Text="监控数据多久更新一次" Style="{StaticResource Small}" Margin="0,2,0,0"/>
+                  </StackPanel>
+                  <Border Style="{StaticResource SegHost}" HorizontalAlignment="Right" VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal">
+                      <RadioButton x:Name="Refresh1" GroupName="Refresh" Style="{StaticResource SegItem}" Content="1 秒"/>
+                      <RadioButton x:Name="Refresh2" GroupName="Refresh" Style="{StaticResource SegItem}" Content="2 秒"/>
+                      <RadioButton x:Name="Refresh5" GroupName="Refresh" Style="{StaticResource SegItem}" Content="5 秒"/>
+                    </StackPanel>
+                  </Border>
+                </Grid>
+              </Border>
+              <Border Style="{StaticResource RowLine}">
+                <Grid>
+                  <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="140"/><ColumnDefinition Width="50"/></Grid.ColumnDefinitions>
+                  <StackPanel Margin="0,0,12,0">
+                    <TextBlock Text="温度提醒"/>
+                    <TextBlock Text="达到这个温度时 HP 娘会提醒你" Style="{StaticResource Small}" Margin="0,2,0,0" TextWrapping="Wrap"/>
+                  </StackPanel>
+                  <Slider x:Name="AlertSlider" Grid.Column="1" Minimum="60" Maximum="95" VerticalAlignment="Center"/>
+                  <TextBlock x:Name="AlertText" Grid.Column="2" Text="85°C" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                </Grid>
+              </Border>
+              <Border Style="{StaticResource RowLine}">
+                <Grid>
+                  <StackPanel Margin="0,0,60,0">
+                    <TextBlock Text="开机自动启动"/>
+                    <TextBlock Text="登录后自动打开，不弹管理员确认" Style="{StaticResource Small}" Margin="0,2,0,0" TextWrapping="Wrap"/>
+                  </StackPanel>
+                  <CheckBox x:Name="AutoStartSwitch" Style="{StaticResource Switch}" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                </Grid>
+              </Border>
+              <Border Style="{StaticResource RowLine}">
+                <Grid>
+                  <StackPanel Margin="0,0,60,0">
+                    <TextBlock Text="自动检查更新"/>
+                    <TextBlock Text="每天最多查一次，有新版本只在这里提示" Style="{StaticResource Small}" Margin="0,2,0,0" TextWrapping="Wrap"/>
+                  </StackPanel>
+                  <CheckBox x:Name="AutoUpdateSwitch" Style="{StaticResource Switch}" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                </Grid>
+              </Border>
+              <Border Style="{StaticResource RowLine}" BorderThickness="0">
+                <Grid>
+                  <StackPanel>
+                    <TextBlock Text="窗口置顶"/>
+                    <TextBlock Text="让控制台始终显示在其他窗口上面" Style="{StaticResource Small}" Margin="0,2,0,0"/>
+                  </StackPanel>
+                  <CheckBox x:Name="TopMostSwitch" Style="{StaticResource Switch}" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                </Grid>
+              </Border>
+            </StackPanel>
+          </Border>
+
+          <StackPanel Grid.Column="2">
+            <Border Style="{StaticResource Card}" Padding="20,14">
+              <StackPanel>
+                <TextBlock Text="天气位置" Style="{StaticResource CardTitle}"/>
+                <Border Height="10"/>
+                <Border Style="{StaticResource SegHost}">
+                  <StackPanel Orientation="Horizontal">
+                    <RadioButton x:Name="WeatherByLocation" GroupName="WeatherMode" Style="{StaticResource SegItem}" Content="Windows 定位"/>
+                    <RadioButton x:Name="WeatherByIp" GroupName="WeatherMode" Style="{StaticResource SegItem}" Content="按 IP"/>
+                    <RadioButton x:Name="WeatherManual" GroupName="WeatherMode" Style="{StaticResource SegItem}" Content="手动选择"/>
+                  </StackPanel>
+                </Border>
+                <StackPanel x:Name="CityPicker" Margin="0,10,0,0" Visibility="Collapsed">
+                  <Grid>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                    <TextBox x:Name="CityQuery" Height="32" Padding="8,0" VerticalContentAlignment="Center" FontSize="14"
+                             BorderBrush="#C9CED6" ToolTip="输入城市或地区名，如 东京、新宿、Tai Po"/>
+                    <Button x:Name="CitySearchBtn" Grid.Column="1" Style="{StaticResource OutlineButton}" Content="搜索" Width="72" Margin="8,0,0,0"/>
+                  </Grid>
+                  <ListBox x:Name="CityResults" Height="96" Margin="0,8,0,0" BorderBrush="#E6E8EC" FontSize="13"/>
+                </StackPanel>
+                <TextBlock x:Name="WeatherNow" FontSize="13" Margin="0,10,0,0" TextWrapping="Wrap" Text="当前：—"/>
+              </StackPanel>
+            </Border>
+            <Border Style="{StaticResource Card}" Padding="20,12" Margin="0,14,0,0">
+              <StackPanel>
+                <TextBlock Text="关于" Style="{StaticResource CardTitle}"/>
+                <TextBlock x:Name="AboutText" Style="{StaticResource Small}" Margin="0,6,0,0" TextWrapping="Wrap" LineHeight="20"/>
+                <Grid Margin="0,8,0,0">
+                  <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                  <TextBlock x:Name="UpdateStatus" FontSize="13" VerticalAlignment="Center" Margin="0,0,12,0" TextWrapping="Wrap" Text="当前版本"/>
+                  <Button x:Name="GitHubBtn" Grid.Column="1" Style="{StaticResource OutlineButton}" Content="GitHub 主页" MinWidth="88" Height="28" Margin="0,0,8,0"/>
+                  <Button x:Name="CheckUpdateBtn" Grid.Column="2" Style="{StaticResource OutlineButton}" Content="检查更新" MinWidth="88" Height="28"/>
+                </Grid>
+              </StackPanel>
+            </Border>
+          </StackPanel>
+        </Grid>
+      </ScrollViewer>
+    </Grid>
+  </Grid>
+  </Grid>
+</Window>
