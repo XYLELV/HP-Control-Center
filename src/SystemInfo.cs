@@ -263,7 +263,7 @@ namespace HPControlPanel
 
         // ---------- Session actions ----------
         [DllImport("user32.dll")] static extern bool LockWorkStation();
-        [DllImport("user32.dll")] static extern IntPtr SendMessage(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
+        [DllImport("user32.dll")] static extern bool PostMessage(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
 
         [DllImport("powrprof.dll")] static extern bool IsPwrSuspendAllowed();
         [DllImport("powrprof.dll")] static extern bool SetSuspendState(bool hibernate, bool forceCritical, bool disableWakeEvent);
@@ -274,15 +274,20 @@ namespace HPControlPanel
         public static void Sleep()
         {
             if (IsPwrSuspendAllowed()) SetSuspendState(false, false, false);
-            else SendMessage((IntPtr)0xFFFF, 0x0112 /*WM_SYSCOMMAND*/, (IntPtr)0xF170 /*SC_MONITORPOWER*/, (IntPtr)2);
+            // Posted, not sent: a broadcast SendMessage waits for every window, so one hung app would freeze this one.
+            else PostMessage((IntPtr)0xFFFF /*HWND_BROADCAST*/, 0x0112 /*WM_SYSCOMMAND*/, (IntPtr)0xF170 /*SC_MONITORPOWER*/, (IntPtr)2);
         }
 
         public static void Restart() { Run("shutdown.exe", "/r /t 0"); }
         public static void Shutdown() { Run("shutdown.exe", "/s /t 0"); }
 
+        // Always by full System32 path: this app runs elevated, and a bare name is also searched for in the app's
+        // own folder and the current directory.
+        public static string Sys32(string exe) { return System.IO.Path.Combine(Environment.SystemDirectory, exe); }
+
         static void Run(string exe, string args)
         {
-            var psi = new System.Diagnostics.ProcessStartInfo(exe, args) { CreateNoWindow = true, UseShellExecute = false };
+            var psi = new System.Diagnostics.ProcessStartInfo(Sys32(exe), args) { CreateNoWindow = true, UseShellExecute = false };
             System.Diagnostics.Process.Start(psi);
         }
     }

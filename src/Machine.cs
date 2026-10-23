@@ -65,7 +65,8 @@ namespace HPControlPanel
             return k == null ? "" : (Convert.ToString(k.GetValue(name)) ?? "").Trim();
         }
 
-        static string Clean(string s)
+        // "Intel(R) Core(TM)  i3" -> "Intel Core i3" (also used by the details page)
+        public static string Clean(string s)
         {
             return Regex.Replace((s ?? "").Replace("(R)", "").Replace("(TM)", "").Replace("(tm)", ""), @"\s+", " ").Trim();
         }

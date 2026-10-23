@@ -665,7 +665,7 @@
                 <Grid>
                   <StackPanel Margin="0,0,60,0">
                     <TextBlock Text="开机自动启动"/>
-                    <TextBlock Text="登录后自动打开，不弹管理员确认" Style="{StaticResource Small}" Margin="0,2,0,0" TextWrapping="Wrap"/>
+                    <TextBlock x:Name="AutoStartHint" Text="登录后自动打开，不弹管理员确认" Style="{StaticResource Small}" Margin="0,2,0,0" TextWrapping="Wrap"/>
                   </StackPanel>
                   <CheckBox x:Name="AutoStartSwitch" Style="{StaticResource Switch}" HorizontalAlignment="Right" VerticalAlignment="Center"/>
                 </Grid>

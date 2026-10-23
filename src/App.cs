@@ -12,9 +12,12 @@ namespace HPControlPanel
 
         public static void Log(Exception e)
         {
-            try { File.AppendAllText(Path.Combine(Settings.DataDir, "error.log"), DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + "  " + e + Environment.NewLine + Environment.NewLine); }
+            try { SafeFile.AppendAllText(Path.Combine(Settings.DataDir, "error.log"), DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + "  " + e + Environment.NewLine + Environment.NewLine); }
             catch { }
         }
+
+        [System.Runtime.InteropServices.DllImport("kernel32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+        static extern bool SetDllDirectory(string path);
 
         [System.Runtime.InteropServices.DllImport("user32.dll")] static extern bool IsIconic(IntPtr hWnd);
         [System.Runtime.InteropServices.DllImport("user32.dll")] static extern bool ShowWindow(IntPtr hWnd, int cmd);
@@ -41,6 +44,10 @@ namespace HPControlPanel
         {
             // --snapshot <png> [NavName] [lang]: layout check used during development (no single-instance lock).
             // --restart [NavName]: started by the app itself after a language switch; waits for the old window to close.
+            // Running elevated: never look for programs or DLLs in whatever folder the app was started from
+            // (UAC keeps the caller's current directory, which may be user-writable).
+            Directory.SetCurrentDirectory(Environment.SystemDirectory);
+            SetDllDirectory("");
             bool snapshot = args.Length >= 2 && args[0] == "--snapshot";
             bool restart = args.Length >= 1 && args[0] == "--restart";
             SnapshotMode = snapshot;

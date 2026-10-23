@@ -52,8 +52,6 @@ namespace HPControlPanel
 
         static string Str(object o) { return Convert.ToString(o ?? "").Trim(); }
 
-        static string Clean(string s) { return Regex.Replace(s.Replace("(R)", "").Replace("(TM)", "").Replace("(tm)", ""), @"\s+", " ").Trim(); }
-
         // Vendor names as Chinese users know them (Simplified, Traditional); English keeps the original name.
         static string Vendor(string v)
         {
@@ -114,7 +112,7 @@ namespace HPControlPanel
         {
             foreach (var g in Query("SELECT Name, AdapterRAM, PNPDeviceID FROM Win32_VideoController"))
             {
-                string name = Clean(Str(g["Name"]));
+                string name = Machine.Clean(Str(g["Name"]));
                 if (name.StartsWith("Microsoft")) continue;
                 // AdapterRAM is 32-bit (wrong for cards with 4 GB or more); prefer the driver's own 64-bit size.
                 double gb = DriverVramGb(Str(g["PNPDeviceID"]));
@@ -140,9 +138,8 @@ namespace HPControlPanel
                         {
                             string match = k == null ? "" : Str(k.GetValue("MatchingDeviceId"));
                             if (match.Length == 0 || !pnpId.StartsWith(match, StringComparison.OrdinalIgnoreCase)) continue;
-                            object v = k.GetValue("HardwareInformation.qwMemorySize") ?? k.GetValue("HardwareInformation.MemorySize");
-                            double bytes = v is long ? (long)v : v is int ? (uint)(int)v : v is byte[] && ((byte[])v).Length >= 4 ? BitConverter.ToUInt32((byte[])v, 0) : 0;
-                            if (bytes > 0) return bytes / 1073741824.0;
+                            double gb = Gpu.DriverMemoryGb(k);
+                            if (gb > 0) return gb;
                         }
                     }
             }
@@ -228,7 +225,7 @@ namespace HPControlPanel
         {
             return Query("SELECT Name, PNPDeviceID FROM Win32_NetworkAdapter WHERE PhysicalAdapter=True")
                 .Where(n => Regex.IsMatch(Str(n["PNPDeviceID"]), @"^(PCI|USB)\\", RegexOptions.IgnoreCase))
-                .Select(n => Clean(Str(n["Name"]))).Distinct();
+                .Select(n => Machine.Clean(Str(n["Name"]))).Distinct();
         }
 
         static IEnumerable<string> Os()

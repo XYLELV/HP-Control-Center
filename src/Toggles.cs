@@ -44,7 +44,8 @@ namespace HPControlPanel
         static object Await(object op, Type result)
         {
             var task = (Task)AsTask.MakeGenericMethod(result).Invoke(null, new[] { op });
-            task.Wait(8000);
+            // Reading Result of an unfinished task would block for good (and with it every later poll).
+            if (!task.Wait(8000)) throw new TimeoutException("Windows.Devices.Radios did not answer");
             return task.GetType().GetProperty("Result").GetValue(task);
         }
 
@@ -89,6 +90,10 @@ namespace HPControlPanel
     public static class Devices
     {
         public static string TouchpadId, CameraId;
+        static volatile bool restartNeeded;
+
+        // True once after a switch that Windows applies only at the next restart (pnputil exit code 3010).
+        public static bool TakeRestartNeeded() { bool r = restartNeeded; restartNeeded = false; return r; }
 
         // How likely a Camera / Image class device is the normal webcam: -1 = never (Windows Hello IR sensor,
         // depth camera, scanner), higher = better. A "Camera" class device with a camera-like name wins.
@@ -143,11 +148,11 @@ namespace HPControlPanel
             if (id == null) return false;
             try
             {
-                var psi = new ProcessStartInfo("pnputil.exe", (on ? "/enable-device \"" : "/disable-device \"") + id + "\"") { CreateNoWindow = true, UseShellExecute = false, RedirectStandardOutput = true };
+                var psi = new ProcessStartInfo(SystemInfo.Sys32("pnputil.exe"), (on ? "/enable-device \"" : "/disable-device \"") + id + "\"") { CreateNoWindow = true, UseShellExecute = false };
                 using (var p = Process.Start(psi))
                 {
-                    p.StandardOutput.ReadToEnd();
-                    p.WaitForExit(15000);
+                    if (!p.WaitForExit(15000)) return false;
+                    if (p.ExitCode == 3010) { restartNeeded = true; return true; }   // ERROR_SUCCESS_REBOOT_REQUIRED
                     return p.ExitCode == 0;
                 }
             }

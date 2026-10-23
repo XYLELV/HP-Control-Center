@@ -32,7 +32,7 @@ EC 是主板上的一块小芯片，里面有 256 个字节的“格子”。风
 到 [Releases](../../releases) 下载 `HP-Control-Center-*.zip`，解压后：
 
 - 双击 `Install.cmd`：安装到 `C:\Program Files\HPControlPanel`，加开始菜单项，没有 PawnIO 时自动装上（会弹一次管理员确认）。
-- 或者直接双击 `HPControlPanel.exe` 免安装使用（同一文件夹里要有 `LpcACPIEC.bin`）。
+- 或者直接双击 `HPControlPanel.exe` 免安装使用（同一文件夹里要有 `LpcACPIEC.bin`）。免安装时不能开机自启：自启任务会以管理员身份运行，只允许安装在 Program Files 里的版本使用。
 
 exe 没有代码签名，第一次打开 Windows 可能提示「已保护你的电脑」，点「更多信息 → 仍要运行」即可；不放心可以按下面的方法自己从源码编译。
 

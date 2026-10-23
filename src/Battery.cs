@@ -90,7 +90,8 @@ namespace HPControlPanel
         static bool pathLooked;
 
         // knownRateMW: a live rate from another source (the EC's smart-battery current), or null.
-        public static BatteryReading Read(int? knownRateMW = null)
+        // adjust: corrections from another source (the EC's own capacities), applied before the times are computed.
+        public static BatteryReading Read(int? knownRateMW = null, Action<BatteryReading> adjust = null)
         {
             var r = new BatteryReading();
             try
@@ -148,6 +149,7 @@ namespace HPControlPanel
             catch (Exception e) { App.Log(e); }
 
             if (knownRateMW.HasValue && r.Present) { r.RateMW = knownRateMW.Value; r.RateSource = L.S("EC 实时", "Live from the EC"); }
+            if (adjust != null && r.Present) adjust(r);
             Estimate(r);
             return r;
         }

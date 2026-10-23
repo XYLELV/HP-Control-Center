@@ -41,17 +41,21 @@ namespace HPControlPanel
         // Where versions up to 2026-10-22 kept the exe and settings.
         static string LegacyDir { get { return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "HPControlPanel"); } }
 
+        public static readonly string[] ImageExtensions = { ".png", ".jpg", ".jpeg", ".bmp", ".gif" };
+
         // One-time move of settings.ini and custom-mascot.* from the old install folder.
         static void MigrateLegacy()
         {
             try
             {
                 if (File.Exists(FilePath) || !File.Exists(Path.Combine(LegacyDir, "settings.ini"))) return;
+                // Only picture files: anything else in that user-writable folder isn't ours to copy.
                 foreach (var f in Directory.GetFiles(LegacyDir, "custom-mascot.*"))
-                    File.Copy(f, Path.Combine(DataDir, Path.GetFileName(f)), true);
+                    if (ImageExtensions.Contains(Path.GetExtension(f).ToLowerInvariant()))
+                        SafeFile.WriteAllBytes(Path.Combine(DataDir, Path.GetFileName(f)), File.ReadAllBytes(f));
                 var lines = File.ReadAllLines(Path.Combine(LegacyDir, "settings.ini"), Encoding.UTF8)
                     .Select(l => l.StartsWith("MascotImage=") ? l.Replace(LegacyDir, DataDir) : l);
-                File.WriteAllLines(FilePath, lines, Encoding.UTF8);
+                SafeFile.WriteAllText(FilePath, string.Join(Environment.NewLine, lines) + Environment.NewLine);
             }
             catch (Exception e) { App.Log(e); }
         }
@@ -109,7 +113,7 @@ namespace HPControlPanel
             sb.AppendLine("LastUpdateCheck=" + LastUpdateCheck);
             sb.AppendLine("AnnouncedVersion=" + AnnouncedVersion);
             sb.AppendLine("Language=" + Language);
-            try { File.WriteAllText(FilePath, sb.ToString(), Encoding.UTF8); } catch { }
+            SafeFile.WriteAllText(FilePath, sb.ToString());
         }
 
         // ---------- Autostart: a logon task with highest privileges, so no UAC prompt at each login ----------
@@ -152,10 +156,28 @@ namespace HPControlPanel
             return FindTask(TaskName) != null || MyLegacyTask() != null;
         }
 
+        // The task starts its exe as administrator without asking, so only a copy in Program Files (writable by
+        // administrators only) may be registered: a copy run from e.g. Downloads could be swapped by any program,
+        // which would then start elevated at every sign-in.
+        public static bool InstalledCopy
+        {
+            get
+            {
+                try
+                {
+                    string exe = Path.GetFullPath(Process.GetCurrentProcess().MainModule.FileName);
+                    string pf = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles).TrimEnd('\\') + "\\";
+                    return exe.StartsWith(pf, StringComparison.OrdinalIgnoreCase);
+                }
+                catch { return false; }
+            }
+        }
+
         // Moves this account's old shared task to its own name, and re-points a task that runs another exe
-        // (e.g. the old user-writable install) at this one.
+        // (e.g. the old user-writable install) at this one. A portable copy leaves existing tasks alone.
         public static void RepairAutoStart()
         {
+            if (!InstalledCopy) return;
             try
             {
                 if (MyLegacyTask() != null && SetAutoStart(true)) TaskFolder().DeleteTask(LegacyTaskName, 0);
@@ -177,6 +199,7 @@ namespace HPControlPanel
                     if (MyLegacyTask() != null) TaskFolder().DeleteTask(LegacyTaskName, 0);
                     return true;
                 }
+                if (!InstalledCopy) return false;
                 // XML so the task also starts on battery (the simple onlogon defaults are AC-only).
                 string exe = System.Security.SecurityElement.Escape(Process.GetCurrentProcess().MainModule.FileName);
                 string user = System.Security.SecurityElement.Escape(Environment.UserDomainName + "\\" + Environment.UserName);
@@ -206,6 +229,8 @@ namespace HPControlPanel
                 string exe = Process.GetCurrentProcess().MainModule.FileName;
                 string lnk = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), "HP Control Center.lnk");
                 string common = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonPrograms), "HP Control Center.lnk");
+                // The per-user Start menu is user-writable: don't follow a junction or link there (see SafeFile).
+                if (!SafeFile.DirOk(Path.GetDirectoryName(lnk)) || (File.Exists(lnk) && (File.GetAttributes(lnk) & FileAttributes.ReparsePoint) != 0)) return;
                 if (File.Exists(common))
                 {
                     if (File.Exists(lnk))

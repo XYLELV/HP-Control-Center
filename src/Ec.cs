@@ -19,6 +19,8 @@ namespace HPControlPanel
         // Battery straight from the smart battery (only on boards whose profile maps it)
         public int BatRateMA = int.MinValue;     // signed: negative while discharging
         public int BatVoltMV = -1, BatDesignMAh = -1, BatFullMAh = -1, BatDesignMV = -1, BatCycles = -1;
+
+        public EcSnapshot Copy() { return (EcSnapshot)MemberwiseClone(); }
     }
 
     public sealed class Ec : IDisposable
@@ -127,7 +129,8 @@ namespace HPControlPanel
             bool got;
             try { got = mtx.WaitOne(500); } catch (AbandonedMutexException) { got = true; }
             // Another tool (FanControl, LibreHardwareMonitor...) holds the EC: don't interleave with it.
-            if (!got) return lastGood;
+            // A copy, because callers fill in fallbacks (e.g. the ACPI temperature) on what they get.
+            if (!got) return lastGood.Copy();
             var s = new EcSnapshot();
             try
             {

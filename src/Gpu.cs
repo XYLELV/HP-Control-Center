@@ -174,6 +174,17 @@ namespace HPControlPanel
             sharedGb = s / 1073741824.0;
         }
 
+        // Video memory size a display driver writes into its class key: HardwareInformation.qwMemorySize (64-bit),
+        // or the older 32-bit MemorySize (REG_DWORD or REG_BINARY), in GB; 0 if absent.
+        public static double DriverMemoryGb(Microsoft.Win32.RegistryKey k)
+        {
+            object v = k == null ? null : k.GetValue("HardwareInformation.qwMemorySize") ?? k.GetValue("HardwareInformation.MemorySize");
+            var bin = v as byte[];
+            double bytes = v is long ? (double)(long)v : v is int ? (uint)(int)v
+                : bin != null && bin.Length >= 8 ? (double)BitConverter.ToUInt64(bin, 0) : bin != null && bin.Length >= 4 ? BitConverter.ToUInt32(bin, 0) : 0;
+            return bytes / 1073741824.0;
+        }
+
         // Dedicated video memory size from the display driver's registry entry (largest adapter), in GB; 0 if unknown.
         public static double DedicatedTotalGb()
         {
@@ -186,11 +197,7 @@ namespace HPControlPanel
                         try
                         {
                             using (var k = cls.OpenSubKey(sub))
-                            {
-                                object v = k == null ? null : k.GetValue("HardwareInformation.qwMemorySize") ?? k.GetValue("HardwareInformation.MemorySize");
-                                double bytes = v is long ? (long)v : v is int ? (uint)(int)v : v is byte[] && ((byte[])v).Length >= 4 ? BitConverter.ToUInt32((byte[])v, 0) : 0;
-                                best = Math.Max(best, bytes / 1073741824.0);
-                            }
+                                best = Math.Max(best, DriverMemoryGb(k));
                         }
                         catch { }
                     }

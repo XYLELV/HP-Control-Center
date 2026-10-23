@@ -5,6 +5,7 @@ https://github.com/XYLELV/HP-Control-Center
 1. 双击 Install.cmd：安装到 C:\Program Files\HPControlPanel，加开始菜单项「HP Control Center」，
    电脑没有 PawnIO 驱动时自动下载官方版安装（读取风扇需要它）。会弹一次管理员确认。
 2. 或者直接双击 HPControlPanel.exe 免安装使用（LpcACPIEC.bin 要和它放在同一个文件夹）。
+   免安装时不能开机自启（开机自启只允许安装版使用）。
 
 exe 没有代码签名，第一次打开可能出现「Windows 已保护你的电脑」：点「更多信息」→「仍要运行」。
 不放心的话，源码全部公开，可以自己编译（见 GitHub 上的 README）。
@@ -13,6 +14,7 @@ exe 没有代码签名，第一次打开可能出现「Windows 已保护你的�
 1. Double-click Install.cmd: installs to C:\Program Files\HPControlPanel, adds a Start menu entry and,
    if missing, installs the official PawnIO driver (needed for fan readings). Asks for administrator once.
 2. Or just run HPControlPanel.exe from this folder (keep LpcACPIEC.bin next to it).
+   "Start with Windows" needs the installed copy.
 
 The exe is not code-signed, so SmartScreen may warn on first run: "More info" → "Run anyway".
 All source code is public; you can build it yourself instead.

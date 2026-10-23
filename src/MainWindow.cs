@@ -87,10 +87,9 @@ namespace HPControlPanel
             LoadMascotImage();
             StartAnimations();
             StartWeather();
+            ecOk = ec.Open(profile, Path.Combine(Settings.Dir, "LpcACPIEC.bin"));   // before LoadDetails, which reads it
             LoadDetails();
             WireUpdates();
-
-            ecOk = ec.Open(profile, Path.Combine(Settings.Dir, "LpcACPIEC.bin"));
 
             var clock = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
             clock.Tick += (o, e) => UpdateClock();
@@ -374,6 +373,8 @@ namespace HPControlPanel
                     t.Done = true;   // cleared on the next reading, so the tile shows the real new state
                     forceSlowPoll = true;
                     if (!ok) W.Dispatcher.BeginInvoke(new Action(() => MessageBox.Show(W, L.F("{0}切换失败。", "Couldn't switch {0}.", name), name)));
+                    else if (Devices.TakeRestartNeeded())
+                        W.Dispatcher.BeginInvoke(new Action(() => MessageBox.Show(W, L.F("{0}已切换，重启电脑后生效。", "{0} was switched. It takes effect after a restart.", name), name)));
                     Poll();
                 });
             };
@@ -440,7 +441,9 @@ namespace HPControlPanel
                 var r = Updater.Check();
                 W.Dispatcher.BeginInvoke(new Action(() =>
                 {
-                    settings.LastUpdateCheck = DateTime.UtcNow.Ticks;
+                    // Only a check that reached GitHub counts; after a failure (e.g. no network yet at sign-in)
+                    // the hourly tick tries again instead of waiting a day.
+                    if (r.Error == null) settings.LastUpdateCheck = DateTime.UtcNow.Ticks;
                     if (r.Newer)
                     {
                         status.Inlines.Clear();
@@ -477,7 +480,10 @@ namespace HPControlPanel
             };
             ThreadPool.QueueUserWorkItem(_ =>
             {
-                var rows = SystemDetails.Collect(machine, Battery.Read());
+                // Same EC-corrected battery values as the power page (ec is opened before this runs).
+                EcSnapshot e = null;
+                if (ecOk) { var r0 = ec.Read(); if (r0.CpuTemp >= 0) e = r0; }
+                var rows = SystemDetails.Collect(machine, ReadBattery(e));
                 W.Dispatcher.BeginInvoke(new Action(() =>
                 {
                     var grid = Get<Grid>("DetailsGrid");
@@ -619,18 +625,8 @@ namespace HPControlPanel
                 bool slow = forceSlowPoll || pollCount++ % Math.Max(1, 5 / settings.RefreshSec) == 0;
                 forceSlowPoll = false;
                 var prev = last;
-                // Battery: read every poll (the device path is cached, so it's cheap). On boards whose EC profile maps
-                // the smart battery, its live current x voltage gives the power immediately, and its own design /
-                // full-charge capacity and cycle count replace the driver's (this HP driver reports full = design).
-                var e2 = s.Ec;
-                int? ecRateMW = s.EcOk && e2.BatRateMA != int.MinValue && e2.BatVoltMV > 0 ? (int?)((long)e2.BatRateMA * e2.BatVoltMV / 1000) : null;
-                s.Bat = Battery.Read(ecRateMW);
-                if (s.EcOk && e2.BatDesignMAh > 0 && e2.BatFullMAh > 0 && e2.BatDesignMV > 0)
-                {
-                    s.Bat.DesignMWh = (int)((long)e2.BatDesignMAh * e2.BatDesignMV / 1000);
-                    s.Bat.FullMWh = (int)((long)e2.BatFullMAh * e2.BatDesignMV / 1000);
-                    if (e2.BatCycles >= 0) s.Bat.CycleCount = e2.BatCycles;
-                }
+                // Battery: read every poll (the device path is cached, so it's cheap).
+                s.Bat = ReadBattery(s.EcOk ? s.Ec : null);
                 s.Wifi = slow ? Radios.Get(Radios.WiFi) : prev.Wifi;
                 s.Bluetooth = slow ? Radios.Get(Radios.Bluetooth) : prev.Bluetooth;
                 s.Touchpad = slow ? Devices.Enabled(Devices.TouchpadId) : prev.Touchpad;
@@ -647,6 +643,22 @@ namespace HPControlPanel
             }
             catch (Exception e) { App.Log(e); }
             finally { Interlocked.Exchange(ref polling, 0); }
+        }
+
+        // On boards whose EC profile maps the smart battery, its live current x voltage gives the power immediately,
+        // and its own design / full-charge capacity and cycle count replace the driver's (this HP driver reports
+        // full = design). Applied before the times are computed, and used by the details page as well.
+        static BatteryReading ReadBattery(EcSnapshot e)
+        {
+            if (e == null) return Battery.Read();
+            int? rateMW = e.BatRateMA != int.MinValue && e.BatVoltMV > 0 ? (int?)((long)e.BatRateMA * e.BatVoltMV / 1000) : null;
+            return Battery.Read(rateMW, b =>
+            {
+                if (e.BatDesignMAh <= 0 || e.BatFullMAh <= 0 || e.BatDesignMV <= 0) return;
+                b.DesignMWh = (int)((long)e.BatDesignMAh * e.BatDesignMV / 1000);
+                b.FullMWh = (int)((long)e.BatFullMAh * e.BatDesignMV / 1000);
+                if (e.BatCycles >= 0) b.CycleCount = e.BatCycles;
+            });
         }
 
         void Apply(Snapshot s)
@@ -1124,9 +1136,12 @@ namespace HPControlPanel
                 if (dlg.ShowDialog(W) != true) return;
                 try
                 {
-                    // Keep a copy next to the exe so the original can be moved or deleted.
-                    string dest = Path.Combine(Settings.DataDir, "custom-mascot" + Path.GetExtension(dlg.FileName).ToLowerInvariant());
-                    File.Copy(dlg.FileName, dest, true);
+                    // Keep a copy in the data folder so the original can be moved or deleted.
+                    string ext = Path.GetExtension(dlg.FileName).ToLowerInvariant();
+                    if (!Settings.ImageExtensions.Contains(ext)) throw new IOException(L.S("只支持 PNG / JPG / BMP / GIF 图片。", "Only PNG / JPG / BMP / GIF images are supported."));
+                    string dest = Path.Combine(Settings.DataDir, "custom-mascot" + ext);
+                    if (!SafeFile.WriteAllBytes(dest, File.ReadAllBytes(dlg.FileName)))
+                        throw new IOException(L.S("数据文件夹 %APPDATA%\\HPControlPanel 无法安全写入。", "The data folder %APPDATA%\\HPControlPanel can't be written safely."));
                     settings.MascotImage = dest;
                     settings.Save();
                     LoadMascotImage();
@@ -1165,13 +1180,21 @@ namespace HPControlPanel
 
             var auto = Get<CheckBox>("AutoStartSwitch");
             auto.IsChecked = Settings.AutoStartEnabled();
+            if (!Settings.InstalledCopy && auto.IsChecked != true)
+            {
+                // Portable copy: only an installed copy may start elevated at sign-in (see Settings.InstalledCopy).
+                auto.IsEnabled = false;
+                Get<TextBlock>("AutoStartHint").Text = L.S("免安装运行时不可用，先用 Install.cmd 安装", "免安裝執行時無法使用，請先用 Install.cmd 安裝", "Not available for the portable copy; install with Install.cmd first");
+            }
             auto.Click += (o, e) =>
             {
                 bool want = auto.IsChecked == true;
                 if (!Settings.SetAutoStart(want))
                 {
                     auto.IsChecked = !want;
-                    MessageBox.Show(W, L.S("设置开机自动启动失败。", "Couldn't change the startup setting."), L.T("开机自动启动"));
+                    MessageBox.Show(W, want && !Settings.InstalledCopy
+                        ? L.S("免安装运行时不能开机自启，请先用 Install.cmd 安装。", "免安裝執行時無法開機自動啟動，請先用 Install.cmd 安裝。", "The portable copy can't start with Windows. Install it with Install.cmd first.")
+                        : L.S("设置开机自动启动失败。", "Couldn't change the startup setting."), L.T("开机自动启动"));
                 }
             };
 
