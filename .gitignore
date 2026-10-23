@@ -3,3 +3,5 @@ bin-snap/
 tools/*.exe
 *.log
 dist/
+security/*.exe
+security/*.bin
