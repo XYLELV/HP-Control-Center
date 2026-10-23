@@ -9,10 +9,16 @@
 #    until the app migrates it to %APPDATA%\HPControlPanel on its next start.
 #  - The desktop shortcut is re-pointed and an all-users Start menu entry "HP Control Center" is written;
 #    the app removes the old per-user Start menu entry when it starts.
+#  - If the PawnIO driver (needed to read the fan) isn't installed, its official signed setup is downloaded from
+#    github.com/namazso/PawnIO.Setup, checked against the SHA-256 below and installed silently.
+#    -NoPawnIO skips this.
+param([switch]$NoPawnIO)
 $ErrorActionPreference = 'Stop'
 $src = Join-Path $PSScriptRoot 'bin'
 $dst = Join-Path $env:ProgramFiles 'HPControlPanel'
 $files = 'HPControlPanel.exe', 'LpcACPIEC.bin'
+$pawnUrl = 'https://github.com/namazso/PawnIO.Setup/releases/download/2.2.0/PawnIO_setup.exe'
+$pawnSha = '1F519A22E47187F70A1379A48CA604981C4FCF694F4E65B734AAA74A9FBA3032'
 
 $stage = Join-Path $env:TEMP ('hpcp-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $stage | Out-Null
@@ -21,6 +27,23 @@ foreach ($f in $files) {
     Copy-Item (Join-Path $src $f) $stage
     $hashes[$f] = (Get-FileHash (Join-Path $stage $f) -Algorithm SHA256).Hash
 }
+
+$needPawn = -not $NoPawnIO -and -not (Test-Path (Join-Path $env:ProgramFiles 'PawnIO\PawnIOLib.dll'))
+if ($needPawn) {
+    'downloading PawnIO 2.2.0 ...'
+    [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+    (New-Object Net.WebClient).DownloadFile($pawnUrl, (Join-Path $stage 'PawnIO_setup.exe'))
+    if ((Get-FileHash (Join-Path $stage 'PawnIO_setup.exe') -Algorithm SHA256).Hash -ne $pawnSha) { Remove-Item $stage -Recurse -Force; throw 'PawnIO_setup.exe SHA-256 mismatch' }
+}
+# Run by the elevated step only after it has copied the setup into the admin-only folder and re-checked it there.
+$pawnStep = if ($needPawn) { @"
+    `$ps = Join-Path `$dst 'PawnIO_setup.exe'
+    Copy-Item (Join-Path `$stage 'PawnIO_setup.exe') `$ps -Force
+    if ((Get-FileHash `$ps -Algorithm SHA256).Hash -ne '$pawnSha') { Remove-Item `$ps -Force; throw 'PawnIO setup changed after download' }
+    `$pp = Start-Process `$ps -ArgumentList '-install', '-silent' -Wait -PassThru
+    Remove-Item `$ps -Force
+    if (`$pp.ExitCode -eq 3010) { 'pawnio ok (restart needed)' | Add-Content `$log } elseif (`$pp.ExitCode -eq 0) { 'pawnio ok' | Add-Content `$log } else { ('pawnio exit ' + `$pp.ExitCode) | Add-Content `$log }
+"@ } else { '' }
 
 # Verified AFTER copying, on the copy in the admin-only destination (checking the staged file first would leave
 # a window to swap it between the check and the copy).
@@ -37,6 +60,7 @@ try {
     if (Test-Path `$exe) { try { Remove-Item `$exe -Force } catch { Rename-Item `$exe ('HPControlPanel.{0:yyyyMMddHHmmss}.old' -f (Get-Date)) } }
     foreach (`$f in '$($files -join "','")') { Copy-Item (Join-Path `$stage `$f) `$dst -Force }
 $checks
+$pawnStep
     # All-users Start menu entry (ProgramData, admin-only), so Windows search finds "HP Control Center".
     `$common = Join-Path `$env:ProgramData 'Microsoft\Windows\Start Menu\Programs\HP Control Center.lnk'
     `$ws = New-Object -ComObject WScript.Shell

@@ -12,7 +12,7 @@ namespace HPControlPanel
         public const string Version = "1.0.0";
         public const string Author = "HoShino_Rizu";
         // "owner/name" of the GitHub repository; empty until the project is published.
-        public const string Repo = "XYLELV/hp-control-center";
+        public const string Repo = "XYLELV/HP-Control-Center";
 
         public class Result
         {
